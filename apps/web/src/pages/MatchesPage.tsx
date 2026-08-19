@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
 import type { Match } from "../api";
+import { displayName } from "../displayName";
 
 export function MatchesPage() {
   const { leagueId } = useParams<{ leagueId: string }>();
@@ -14,8 +15,7 @@ export function MatchesPage() {
     api.getMatches(leagueId, { status: "played", mine: true }).then(setPlayed).catch(() => setPlayed([]));
   }, [leagueId]);
 
-  const name = (m: Match, side: "home" | "away") =>
-    side === "home" ? m.homeMember.nickname ?? m.homeMember.user.firstName : m.awayMember.nickname ?? m.awayMember.user.firstName;
+  const name = (m: Match, side: "home" | "away") => displayName(side === "home" ? m.homeMember : m.awayMember);
 
   return (
     <div>

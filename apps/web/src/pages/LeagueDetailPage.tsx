@@ -6,6 +6,7 @@ import { AdminMatchesPage } from "./AdminMatchesPage";
 import { api } from "../api";
 import type { League } from "../api";
 import { getCurrentTelegramId, shareInviteLink } from "../telegram";
+import { displayName } from "../displayName";
 
 export function LeagueDetailPage() {
   const { leagueId } = useParams<{ leagueId: string }>();
@@ -102,8 +103,8 @@ export function LeagueDetailPage() {
           {league.members.map((m) => (
             <div key={m.id} className="match-row" style={{ padding: "8px 0" }}>
               <div className="side">
-                <div className="avatar">{(m.nickname ?? m.user.firstName).charAt(0)}</div>
-                <span className="pname-sm">{m.nickname ?? m.user.firstName}</span>
+                <div className="avatar">{displayName(m).charAt(0)}</div>
+                <span className="pname-sm">{displayName(m)}</span>
               </div>
               {m.role === "owner" ? (
                 <span className="pill done">ادمین</span>

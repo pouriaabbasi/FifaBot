@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import type { Match } from "../api";
+import { displayName } from "../displayName";
 
 export function ResultEntryPage() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -42,8 +43,8 @@ export function ResultEntryPage() {
     }
   }
 
-  const homeName = match ? match.homeMember.nickname ?? match.homeMember.user.firstName : "…";
-  const awayName = match ? match.awayMember.nickname ?? match.awayMember.user.firstName : "…";
+  const homeName = match ? displayName(match.homeMember) : "…";
+  const awayName = match ? displayName(match.awayMember) : "…";
 
   return (
     <div>

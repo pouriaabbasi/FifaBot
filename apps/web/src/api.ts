@@ -144,7 +144,7 @@ export interface League {
     userId: string;
     role: "owner" | "admin" | "player";
     nickname: string | null;
-    user: { firstName: string; photoUrl: string | null };
+    user: { firstName: string; nickname: string | null; photoUrl: string | null };
   }[];
   stages: { id: string; order: number; format: "round_robin" | "knockout"; status: string }[];
 }
@@ -192,6 +192,12 @@ export interface Match {
   homeScore: number | null;
   awayScore: number | null;
   playedAt: string | null;
-  homeMember: { id: string; nickname: string | null; user: { firstName: string } };
-  awayMember: { id: string; nickname: string | null; user: { firstName: string } };
+  homeMember: MemberRef;
+  awayMember: MemberRef;
+}
+
+interface MemberRef {
+  id: string;
+  nickname: string | null;
+  user: { firstName: string; nickname: string | null };
 }
