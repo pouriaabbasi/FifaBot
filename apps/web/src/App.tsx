@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import { getTelegramWebApp, initTelegramWebApp } from "./telegram";
 import { api, loadStoredToken, setAuthToken } from "./api";
@@ -86,7 +86,7 @@ function App() {
   }
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <GlobalLoadingBar />
       <div className="app-shell">
         <Routes>
@@ -108,7 +108,7 @@ function App() {
         </Routes>
         <BottomNav />
       </div>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
 
