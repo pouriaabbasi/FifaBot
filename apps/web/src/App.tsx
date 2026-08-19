@@ -23,12 +23,11 @@ function App() {
     const webApp = getTelegramWebApp();
     let cancelled = false;
 
-    // Render's free tier spins the API down after idle periods; the first
-    // request after a while can take 30-50s to cold-start. Surface that
-    // instead of leaving the screen blank while it loads.
+    // Login can take a couple seconds even on a warm server (network + a DB
+    // upsert). Only call out a slow server after that's clearly exceeded.
     const wakingTimer = setTimeout(() => {
       if (!cancelled) setAuthState("waking");
-    }, 4000);
+    }, 8000);
 
     async function bootstrap() {
       if (!loadStoredToken()) {
@@ -68,7 +67,7 @@ function App() {
     return <div className="loading-state">در حال ورود…</div>;
   }
   if (authState === "waking") {
-    return <div className="loading-state">سرور در حال بیدار شدن است، کمی صبر کن…</div>;
+    return <div className="loading-state">اتصال کمی طول کشیده، کمی صبر کن…</div>;
   }
   if (authState === "error") {
     return (
