@@ -3,6 +3,35 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import type { League } from "../api";
 import { JoinByCodeCard } from "../components/JoinByCodeCard";
+import { getTelegramWebApp } from "../telegram";
+
+function DebugPanel() {
+  const webApp = getTelegramWebApp();
+  const info = {
+    href: window.location.href,
+    initData: webApp?.initData ?? null,
+    initDataUnsafe: webApp?.initDataUnsafe ?? null,
+  };
+  return (
+    <pre
+      style={{
+        fontSize: "0.62rem",
+        background: "rgba(0,0,0,0.4)",
+        padding: 10,
+        borderRadius: 8,
+        marginBottom: 14,
+        direction: "ltr",
+        textAlign: "left",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-all",
+        maxHeight: 220,
+        overflow: "auto",
+      }}
+    >
+      {JSON.stringify(info, null, 2)}
+    </pre>
+  );
+}
 
 const statusPill: Record<League["status"], { label: string; cls: string }> = {
   draft: { label: "پیش‌نویس", cls: "draft" },
@@ -45,6 +74,7 @@ export function LeaguesPage({ inviteError }: { inviteError?: string | null } = {
 
   return (
     <div>
+      <DebugPanel />
       <div className="screen-header">
         <div>
           <div className="screen-title">لیگ‌های من</div>
