@@ -35,10 +35,18 @@ leagueMatchesRouter.get("/", async (req: AuthedRequest, res) => {
 
 export { leagueMatchesRouter };
 
+matchesRouter.get("/:id", async (req: AuthedRequest, res) => {
+  const match = await prisma.match.findUnique({
+    where: { id: req.params.id },
+    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+  });
+  if (!match) return res.status(404).json({ error: "match not found" });
+  res.json(serializeBigInt(match));
+});
+
 const resultSchema = z.object({
   homeScore: z.number().int().min(0),
   awayScore: z.number().int().min(0),
-  playedAt: z.string().datetime().or(z.string().min(1)),
 });
 
 matchesRouter.patch("/:id/result", async (req: AuthedRequest, res) => {
@@ -49,12 +57,7 @@ matchesRouter.patch("/:id/result", async (req: AuthedRequest, res) => {
   if (!match) return res.status(404).json({ error: "match not found" });
 
   const isOwner = match.stage.league.ownerId.toString() === req.auth!.telegramId;
-  if (!isOwner) {
-    const asAdmin = await prisma.leagueMember.findFirst({
-      where: { leagueId: match.stage.leagueId, userId: BigInt(req.auth!.telegramId), role: "admin" },
-    });
-    if (!asAdmin) return res.status(403).json({ error: "owner/admin only" });
-  }
+  if (!isOwner) return res.status(403).json({ error: "owner only" });
 
   const parsed = resultSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -64,7 +67,7 @@ matchesRouter.patch("/:id/result", async (req: AuthedRequest, res) => {
     data: {
       homeScore: parsed.data.homeScore,
       awayScore: parsed.data.awayScore,
-      playedAt: new Date(parsed.data.playedAt),
+      playedAt: new Date(),
       status: "played",
     },
     include: { homeMember: true, awayMember: true },

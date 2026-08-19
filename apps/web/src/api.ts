@@ -110,10 +110,12 @@ export const api = {
     return request<Match[]>(`/api/leagues/${leagueId}/matches?${qs.toString()}`);
   },
 
-  submitResult: (matchId: string, homeScore: number, awayScore: number, playedAt: string) =>
+  getMatch: (matchId: string) => request<Match>(`/api/matches/${matchId}`),
+
+  submitResult: (matchId: string, homeScore: number, awayScore: number) =>
     request(`/api/matches/${matchId}/result`, {
       method: "PATCH",
-      body: JSON.stringify({ homeScore, awayScore, playedAt }),
+      body: JSON.stringify({ homeScore, awayScore }),
     }),
 
   getProfileStats: () => request<ProfileStats>("/api/profile/stats"),
