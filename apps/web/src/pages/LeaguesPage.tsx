@@ -15,7 +15,7 @@ const formatLabel: Record<string, string> = {
   knockout: "حذفی",
 };
 
-export function LeaguesPage() {
+export function LeaguesPage({ inviteError }: { inviteError?: string | null } = {}) {
   const [leagues, setLeagues] = useState<League[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -51,6 +51,14 @@ export function LeaguesPage() {
           <div className="screen-sub">{active.length} لیگ فعال · عضو {leagues.length} لیگ</div>
         </div>
       </div>
+
+      {inviteError && (
+        <div className="card" style={{ borderColor: "var(--danger)" }}>
+          <p style={{ color: "var(--danger)", fontSize: "0.84rem", margin: 0 }}>
+            پیوستن با لینک دعوت ناموفق بود: {inviteError}
+          </p>
+        </div>
+      )}
 
       {active.length > 0 && (
         <>

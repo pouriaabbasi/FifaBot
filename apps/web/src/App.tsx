@@ -16,6 +16,7 @@ type AuthState = "loading" | "waking" | "ready" | "error";
 function App() {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [joinedLeagueId, setJoinedLeagueId] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
@@ -45,17 +46,21 @@ function App() {
         try {
           const { league } = await api.joinLeague(inviteCode);
           if (!cancelled) setJoinedLeagueId(league.id);
-        } catch {
-          // invalid/expired invite link — fall through to the normal league list
+        } catch (err) {
+          if (!cancelled) {
+            setJoinError(err instanceof Error ? err.message : "پیوستن به لیگ ناموفق بود");
+          }
         }
       }
 
       if (!cancelled) setAuthState("ready");
     }
 
-    bootstrap().catch(() => {
-      if (!cancelled) setAuthState("error");
-    });
+    bootstrap()
+      .catch(() => {
+        if (!cancelled) setAuthState("error");
+      })
+      .finally(() => clearTimeout(wakingTimer));
 
     return () => {
       cancelled = true;
@@ -87,9 +92,15 @@ function App() {
         <Routes>
           <Route
             path="/"
-            element={joinedLeagueId ? <Navigate to={`/leagues/${joinedLeagueId}`} replace /> : <LeaguesPage />}
+            element={
+              joinedLeagueId ? (
+                <Navigate to={`/leagues/${joinedLeagueId}`} replace />
+              ) : (
+                <LeaguesPage inviteError={joinError} />
+              )
+            }
           />
-          <Route path="/leagues" element={<LeaguesPage />} />
+          <Route path="/leagues" element={<LeaguesPage inviteError={joinError} />} />
           <Route path="/leagues/new" element={<NewLeaguePage />} />
           <Route path="/leagues/:leagueId" element={<LeagueDetailPage />} />
           <Route path="/leagues/:leagueId/matches/:matchId/result" element={<ResultEntryPage />} />

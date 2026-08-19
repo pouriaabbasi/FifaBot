@@ -66,8 +66,8 @@ leaguesRouter.post("/", async (req: AuthedRequest, res) => {
 });
 
 leaguesRouter.post("/join/:inviteCode", async (req: AuthedRequest, res) => {
-  const league = await prisma.league.findUnique({
-    where: { inviteCode: req.params.inviteCode.trim().toUpperCase() },
+  const league = await prisma.league.findFirst({
+    where: { inviteCode: { equals: req.params.inviteCode.trim(), mode: "insensitive" } },
   });
   if (!league) return res.status(404).json({ error: "invalid invite link" });
   if (league.status !== "draft") return res.status(409).json({ error: "league already started" });
