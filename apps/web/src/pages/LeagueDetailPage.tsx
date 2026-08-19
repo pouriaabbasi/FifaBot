@@ -49,6 +49,26 @@ export function LeagueDetailPage() {
           <button className="btn-gold" style={{ background: "none", border: "1.5px dashed rgba(232,183,63,0.4)", color: "var(--gold)", boxShadow: "none" }} onClick={() => shareInviteLink(league.inviteCode)}>
             🔗 اشتراک‌گذاری لینک دعوت
           </button>
+
+          <div>
+            <div className="field-label" style={{ margin: "2px 0 6px" }}>یا کد لیگ را برای دیگران بفرست</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div
+                className="date-input"
+                style={{ flex: 1, fontFamily: "var(--display)", letterSpacing: "0.15em", textAlign: "center", fontSize: "1rem" }}
+              >
+                {league.inviteCode}
+              </div>
+              <button
+                className="btn-gold"
+                style={{ width: "auto", padding: "0 16px" }}
+                onClick={() => navigator.clipboard?.writeText(league.inviteCode)}
+              >
+                کپی
+              </button>
+            </div>
+          </div>
+
           <button className="btn-gold" disabled={league.members.length < 2 || starting} onClick={handleStart}>
             {starting ? "در حال شروع…" : "شروع لیگ"}
           </button>

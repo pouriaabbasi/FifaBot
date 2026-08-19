@@ -12,15 +12,41 @@ export function loadStoredToken() {
   return authToken;
 }
 
+function clearAuthToken() {
+  authToken = null;
+  sessionStorage.removeItem("auth_token");
+}
+
+const REQUEST_TIMEOUT_MS = 20000;
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      ...options.headers,
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("پاسخی از سرور دریافت نشد، دوباره تلاش کن");
+    }
+    throw new Error("اتصال به سرور برقرار نشد");
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (res.status === 401) {
+    clearAuthToken();
+    throw new Error("نشست شما منقضی شده، دوباره وارد شو");
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ? JSON.stringify(body.error) : `request failed: ${res.status}`);

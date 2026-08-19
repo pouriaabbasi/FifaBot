@@ -17,11 +17,26 @@ const formatLabel: Record<string, string> = {
 
 export function LeaguesPage() {
   const [leagues, setLeagues] = useState<League[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    api.getLeagues().then(setLeagues).catch(() => setLeagues([]));
+    api
+      .getLeagues()
+      .then(setLeagues)
+      .catch((err) => setError(err instanceof Error ? err.message : "خطا در دریافت لیگ‌ها"));
   }, []);
+
+  if (error) {
+    return (
+      <div className="empty-state">
+        <p>{error}</p>
+        <button className="btn-gold" style={{ marginTop: 14 }} onClick={() => window.location.reload()}>
+          تلاش دوباره
+        </button>
+      </div>
+    );
+  }
 
   if (leagues === null) return <div className="loading-state">در حال بارگذاری…</div>;
 
