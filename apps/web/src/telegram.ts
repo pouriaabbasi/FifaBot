@@ -15,9 +15,10 @@ interface TelegramWebApp {
 }
 
 export const BOT_USERNAME = "IndraFifaBot";
+export const MINI_APP_SHORT_NAME = "league";
 
 export function buildInviteLink(inviteCode: string) {
-  return `https://t.me/${BOT_USERNAME}?startapp=${inviteCode}`;
+  return `https://t.me/${BOT_USERNAME}/${MINI_APP_SHORT_NAME}?startapp=${inviteCode}`;
 }
 
 export function getCurrentTelegramId(): string | null {
