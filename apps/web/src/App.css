@@ -303,3 +303,26 @@
   font-family: var(--display);
   padding: 40px 20px;
 }
+
+.grid-2-stat {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.stat-tile {
+  margin-bottom: 0;
+  text-align: center;
+  padding: 16px 10px;
+}
+.stat-tile-value {
+  font-family: var(--display);
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: var(--gold);
+}
+.stat-tile-label {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}

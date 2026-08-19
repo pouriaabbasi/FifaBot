@@ -112,6 +112,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ homeScore, awayScore, playedAt }),
     }),
+
+  getProfileStats: () => request<ProfileStats>("/api/profile/stats"),
 };
 
 export interface League {
@@ -143,6 +145,21 @@ export interface Standing {
   ga: number;
   goalDiff: number;
   points: number;
+}
+
+export interface ProfileStats {
+  leaguesJoined: number;
+  leaguesActive: number;
+  leaguesOwned: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  winRate: number;
+  avgGoalsFor: number;
+  avgGoalsAgainst: number;
 }
 
 export interface Match {
