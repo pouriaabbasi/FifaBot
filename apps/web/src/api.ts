@@ -113,12 +113,23 @@ export const api = {
   getMatch: (matchId: string) => request<Match>(`/api/matches/${matchId}`),
 
   submitResult: (matchId: string, homeScore: number, awayScore: number) =>
-    request(`/api/matches/${matchId}/result`, {
+    request<Match>(`/api/matches/${matchId}/result`, {
       method: "PATCH",
       body: JSON.stringify({ homeScore, awayScore }),
     }),
 
+  clearResult: (matchId: string) =>
+    request<Match>(`/api/matches/${matchId}/result`, { method: "DELETE" }),
+
   getProfileStats: () => request<ProfileStats>("/api/profile/stats"),
+
+  getMe: () => request<CurrentUser>("/api/profile/me"),
+
+  updateNickname: (nickname: string | null) =>
+    request<CurrentUser>("/api/profile/nickname", {
+      method: "PATCH",
+      body: JSON.stringify({ nickname }),
+    }),
 };
 
 export interface League {
@@ -165,6 +176,14 @@ export interface ProfileStats {
   winRate: number;
   avgGoalsFor: number;
   avgGoalsAgainst: number;
+}
+
+export interface CurrentUser {
+  telegramId: string;
+  firstName: string;
+  username: string | null;
+  nickname: string | null;
+  photoUrl: string | null;
 }
 
 export interface Match {

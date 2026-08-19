@@ -6,6 +6,7 @@ import { serializeBigInt } from "../serialize";
 import { generateRoundRobin, generateHomeAndAway, generateKnockoutRound1 } from "../fixtures";
 import { notifyNextMatch } from "../notifications";
 import { generateInviteCode } from "../inviteCode";
+import { displayName } from "../displayName";
 
 export const leaguesRouter = Router();
 leaguesRouter.use(requireAuth);
@@ -239,7 +240,7 @@ export async function computeStandings(stageId: string) {
     return {
       memberId: m.id,
       telegramId: m.userId.toString(),
-      name: m.nickname ?? m.user.firstName,
+      name: displayName(m, m.user),
       played, won, drawn, lost, gf, ga,
       goalDiff: gf - ga,
       points: won * 3 + drawn,

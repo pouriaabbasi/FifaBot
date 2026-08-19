@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import type { ProfileStats } from "../api";
+import type { ProfileStats, CurrentUser } from "../api";
 import { WinLossDonut } from "../components/WinLossDonut";
+import { NicknameCard } from "../components/NicknameCard";
 
 export function ProfilePage() {
   const [stats, setStats] = useState<ProfileStats | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -12,6 +14,7 @@ export function ProfilePage() {
       .getProfileStats()
       .then(setStats)
       .catch((err) => setError(err instanceof Error ? err.message : "خطا در دریافت آمار"));
+    api.getMe().then(setUser).catch(() => setUser(null));
   }, []);
 
   return (
@@ -22,6 +25,8 @@ export function ProfilePage() {
           <div className="screen-sub">آمار کلی در همه لیگ‌ها</div>
         </div>
       </div>
+
+      {user && <NicknameCard user={user} onUpdated={setUser} />}
 
       {error && <div className="empty-state">{error}</div>}
       {!error && !stats && <div className="loading-state">در حال بارگذاری…</div>}

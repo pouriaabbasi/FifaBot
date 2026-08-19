@@ -7,12 +7,27 @@ export function AdminMatchesPage() {
   const { leagueId } = useParams<{ leagueId: string }>();
   const [pending, setPending] = useState<Match[] | null>(null);
   const [played, setPlayed] = useState<Match[] | null>(null);
+  const [clearingId, setClearingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  async function reload() {
     if (!leagueId) return;
     api.getMatches(leagueId, { status: "pending" }).then(setPending).catch(() => setPending([]));
     api.getMatches(leagueId, { status: "played" }).then(setPlayed).catch(() => setPlayed([]));
+  }
+
+  useEffect(() => {
+    reload();
   }, [leagueId]);
+
+  async function handleClear(matchId: string) {
+    setClearingId(matchId);
+    try {
+      await api.clearResult(matchId);
+      await reload();
+    } finally {
+      setClearingId(null);
+    }
+  }
 
   const name = (m: Match, side: "home" | "away") =>
     side === "home" ? m.homeMember.nickname ?? m.homeMember.user.firstName : m.awayMember.nickname ?? m.awayMember.user.firstName;
@@ -65,22 +80,35 @@ export function AdminMatchesPage() {
       ) : (
         <div className="card">
           {played.map((m) => (
-            <div key={m.id} className="match-row">
+            <div key={m.id} className="match-row" style={{ gap: 10 }}>
               <div className="side">
                 <div className="avatar">{name(m, "home").charAt(0)}</div>
                 <span className="pname-sm">{name(m, "home")}</span>
               </div>
-              <div className="vs-box">
+              <Link
+                to={`/leagues/${leagueId}/matches/${m.id}/result`}
+                className="vs-box"
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
                 <div className="score-box">
                   {m.homeScore}
                   <span className="sep">-</span>
                   {m.awayScore}
                 </div>
-              </div>
+                <span className="vs-text">ویرایش</span>
+              </Link>
               <div className="side right">
                 <div className="avatar">{name(m, "away").charAt(0)}</div>
                 <span className="pname-sm">{name(m, "away")}</span>
               </div>
+              <button
+                className="btn-gold"
+                style={{ width: "auto", padding: "4px 10px", fontSize: "0.66rem", background: "none", border: "1px solid var(--danger)", color: "var(--danger)", boxShadow: "none" }}
+                disabled={clearingId === m.id}
+                onClick={() => handleClear(m.id)}
+              >
+                {clearingId === m.id ? "…" : "حذف"}
+              </button>
             </div>
           ))}
         </div>

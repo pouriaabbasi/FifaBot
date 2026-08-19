@@ -14,8 +14,19 @@ export function ResultEntryPage() {
 
   useEffect(() => {
     if (!matchId) return;
-    api.getMatch(matchId).then(setMatch).catch(() => setMatch(null));
+    api
+      .getMatch(matchId)
+      .then((m) => {
+        setMatch(m);
+        if (m.status === "played") {
+          setHomeScore(String(m.homeScore ?? 0));
+          setAwayScore(String(m.awayScore ?? 0));
+        }
+      })
+      .catch(() => setMatch(null));
   }, [matchId]);
+
+  const isEditing = match?.status === "played";
 
   async function handleSubmit() {
     if (!matchId) return;
@@ -38,7 +49,7 @@ export function ResultEntryPage() {
     <div>
       <div className="screen-header">
         <div>
-          <div className="screen-title">ثبت نتیجه</div>
+          <div className="screen-title">{isEditing ? "ویرایش نتیجه" : "ثبت نتیجه"}</div>
           <div className="screen-sub">فقط ادمین لیگ دسترسی دارد</div>
         </div>
       </div>
@@ -53,6 +64,7 @@ export function ResultEntryPage() {
           type="number"
           min={0}
           value={homeScore}
+          onFocus={(e) => e.target.select()}
           onChange={(e) => setHomeScore(e.target.value)}
         />
       </div>
@@ -67,6 +79,7 @@ export function ResultEntryPage() {
           type="number"
           min={0}
           value={awayScore}
+          onFocus={(e) => e.target.select()}
           onChange={(e) => setAwayScore(e.target.value)}
         />
       </div>
@@ -77,12 +90,14 @@ export function ResultEntryPage() {
 
       <div style={{ marginTop: 22 }}>
         <button className="btn-gold" disabled={submitting || !match} onClick={handleSubmit}>
-          {submitting ? "در حال ثبت…" : "ثبت نهایی نتیجه"}
+          {submitting ? "در حال ثبت…" : isEditing ? "ثبت ویرایش" : "ثبت نهایی نتیجه"}
         </button>
       </div>
 
       <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: "0.7rem", marginTop: 10 }}>
-        تاریخ و ساعت لحظه ثبت به‌عنوان زمان بازی ذخیره می‌شود. پس از ثبت، اعلان به هر دو بازیکن ارسال می‌شود
+        {isEditing
+          ? "پس از ویرایش، اعلان به همه اعضای لیگ ارسال می‌شود"
+          : "تاریخ و ساعت لحظه ثبت به‌عنوان زمان بازی ذخیره می‌شود. پس از ثبت، اعلان به همه اعضای لیگ ارسال می‌شود"}
       </p>
     </div>
   );

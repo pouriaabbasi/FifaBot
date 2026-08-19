@@ -1,6 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { prisma } from "./prisma";
 import type { Match, LeagueMember, User } from "@prisma/client";
+import { displayName } from "./displayName";
 
 let bot: TelegramBot | null = null;
 
@@ -15,7 +16,7 @@ type MemberWithUser = LeagueMember & { user: User };
 type MatchWithMembers = Match & { homeMember: MemberWithUser; awayMember: MemberWithUser };
 
 function memberLabel(member: MemberWithUser) {
-  return member.nickname ?? member.user.firstName;
+  return displayName(member, member.user);
 }
 
 export async function notifyNextMatch(match: MatchWithMembers) {
@@ -33,6 +34,35 @@ export async function notifyResultConfirmed(match: MatchWithMembers, leagueId: s
 
   const members = await prisma.leagueMember.findMany({ where: { leagueId } });
   await Promise.all(members.map((m) => sendOnce(m.userId, match.id, "result_confirmed", text)));
+}
+
+export async function notifyResultUpdated(match: MatchWithMembers, leagueId: string) {
+  const homeName = memberLabel(match.homeMember);
+  const awayName = memberLabel(match.awayMember);
+  const text = `✏️ نتیجه ویرایش شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
+  await broadcastToLeague(leagueId, match.id, "result_confirmed", text);
+}
+
+export async function notifyResultCleared(match: MatchWithMembers, leagueId: string) {
+  const homeName = memberLabel(match.homeMember);
+  const awayName = memberLabel(match.awayMember);
+  const text = `🗑 نتیجه حذف شد: ${homeName} مقابل ${awayName} — بازی دوباره در انتظار ثبت است`;
+  await broadcastToLeague(leagueId, match.id, "result_confirmed", text);
+}
+
+async function broadcastToLeague(leagueId: string, matchId: string, type: "next_match" | "result_confirmed", text: string) {
+  const members = await prisma.leagueMember.findMany({ where: { leagueId } });
+  const client = getBot();
+  await Promise.all(
+    members.map(async (m) => {
+      if (!client) return;
+      try {
+        await client.sendMessage(m.userId.toString(), text);
+      } catch (err) {
+        console.error("telegram broadcast failed", { userId: m.userId.toString(), matchId, type, err });
+      }
+    })
+  );
 }
 
 async function sendOnce(userId: bigint, matchId: string, type: "next_match" | "result_confirmed", text: string) {

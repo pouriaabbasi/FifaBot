@@ -45,6 +45,7 @@ model User {
   telegramId    BigInt          @id
   username      String?
   firstName     String
+  nickname      String?
   photoUrl      String?
   createdAt     DateTime        @default(now())
 

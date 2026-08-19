@@ -1,10 +1,32 @@
 import { Router } from "express";
+import { z } from "zod";
 import { prisma } from "../prisma";
 import { AuthedRequest, requireAuth } from "../authMiddleware";
 import { serializeBigInt } from "../serialize";
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
+
+profileRouter.get("/me", async (req: AuthedRequest, res) => {
+  const user = await prisma.user.findUnique({ where: { telegramId: BigInt(req.auth!.telegramId) } });
+  if (!user) return res.status(404).json({ error: "user not found" });
+  res.json(serializeBigInt(user));
+});
+
+const nicknameSchema = z.object({ nickname: z.string().trim().max(40).nullable() });
+
+profileRouter.patch("/nickname", async (req: AuthedRequest, res) => {
+  const parsed = nicknameSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const nickname = parsed.data.nickname && parsed.data.nickname.length > 0 ? parsed.data.nickname : null;
+
+  const user = await prisma.user.update({
+    where: { telegramId: BigInt(req.auth!.telegramId) },
+    data: { nickname },
+  });
+  res.json(serializeBigInt(user));
+});
 
 profileRouter.get("/stats", async (req: AuthedRequest, res) => {
   const userId = BigInt(req.auth!.telegramId);

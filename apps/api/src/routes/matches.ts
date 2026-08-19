@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { AuthedRequest, requireAuth } from "../authMiddleware";
 import { serializeBigInt } from "../serialize";
-import { notifyResultConfirmed } from "../notifications";
+import { notifyResultConfirmed, notifyResultUpdated, notifyResultCleared } from "../notifications";
 
 export const matchesRouter = Router();
 matchesRouter.use(requireAuth);
@@ -62,18 +62,46 @@ matchesRouter.patch("/:id/result", async (req: AuthedRequest, res) => {
   const parsed = resultSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
+  const wasAlreadyPlayed = match.status === "played";
+
   const updated = await prisma.match.update({
     where: { id: req.params.id },
     data: {
       homeScore: parsed.data.homeScore,
       awayScore: parsed.data.awayScore,
-      playedAt: new Date(),
+      playedAt: wasAlreadyPlayed ? match.playedAt! : new Date(),
       status: "played",
     },
     include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
   });
 
-  await notifyResultConfirmed(updated, match.stage.leagueId);
+  if (wasAlreadyPlayed) {
+    await notifyResultUpdated(updated, match.stage.leagueId);
+  } else {
+    await notifyResultConfirmed(updated, match.stage.leagueId);
+  }
 
   res.json(serializeBigInt(updated));
+});
+
+matchesRouter.delete("/:id/result", async (req: AuthedRequest, res) => {
+  const match = await prisma.match.findUnique({
+    where: { id: req.params.id },
+    include: { stage: { include: { league: true } }, homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+  });
+  if (!match) return res.status(404).json({ error: "match not found" });
+
+  const isOwner = match.stage.league.ownerId.toString() === req.auth!.telegramId;
+  if (!isOwner) return res.status(403).json({ error: "owner only" });
+  if (match.status !== "played") return res.status(400).json({ error: "match has no result to clear" });
+
+  const cleared = await prisma.match.update({
+    where: { id: req.params.id },
+    data: { homeScore: null, awayScore: null, playedAt: null, status: "pending" },
+    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+  });
+
+  await notifyResultCleared({ ...cleared, homeScore: match.homeScore, awayScore: match.awayScore }, match.stage.leagueId);
+
+  res.json(serializeBigInt(cleared));
 });
