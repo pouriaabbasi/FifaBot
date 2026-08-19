@@ -54,6 +54,21 @@ leaguesRouter.post("/", async (req: AuthedRequest, res) => {
   res.status(201).json(serializeBigInt(league));
 });
 
+leaguesRouter.post("/join/:inviteCode", async (req: AuthedRequest, res) => {
+  const league = await prisma.league.findUnique({ where: { inviteCode: req.params.inviteCode } });
+  if (!league) return res.status(404).json({ error: "invalid invite link" });
+  if (league.status !== "draft") return res.status(409).json({ error: "league already started" });
+
+  const userId = BigInt(req.auth!.telegramId);
+  const existing = await prisma.leagueMember.findUnique({
+    where: { leagueId_userId: { leagueId: league.id, userId } },
+  });
+  if (existing) return res.json(serializeBigInt({ league, member: existing }));
+
+  const member = await prisma.leagueMember.create({ data: { leagueId: league.id, userId } });
+  res.status(201).json(serializeBigInt({ league, member }));
+});
+
 const addMemberSchema = z.object({ telegramId: z.string(), nickname: z.string().optional() });
 
 leaguesRouter.post("/:id/members", async (req: AuthedRequest, res) => {

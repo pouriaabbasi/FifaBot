@@ -1,15 +1,39 @@
 interface TelegramWebApp {
   initData: string;
+  initDataUnsafe: { start_param?: string; user?: { id: number } };
   ready: () => void;
   expand: () => void;
   setHeaderColor: (color: string) => void;
   setBackgroundColor: (color: string) => void;
+  openTelegramLink: (url: string) => void;
   MainButton: {
     text: string;
     show: () => void;
     hide: () => void;
     onClick: (cb: () => void) => void;
   };
+}
+
+export const BOT_USERNAME = "IndraFifaBot";
+
+export function buildInviteLink(inviteCode: string) {
+  return `https://t.me/${BOT_USERNAME}?startapp=${inviteCode}`;
+}
+
+export function getCurrentTelegramId(): string | null {
+  const id = getTelegramWebApp()?.initDataUnsafe?.user?.id;
+  return id != null ? String(id) : null;
+}
+
+export function shareInviteLink(inviteCode: string) {
+  const link = buildInviteLink(inviteCode);
+  const webApp = getTelegramWebApp();
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("به لیگ ملحق شو!")}`;
+  if (webApp) {
+    webApp.openTelegramLink(shareUrl);
+  } else {
+    window.open(shareUrl, "_blank");
+  }
 }
 
 declare global {

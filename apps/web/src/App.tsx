@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import { getTelegramWebApp, initTelegramWebApp } from "./telegram";
 import { api, loadStoredToken, setAuthToken } from "./api";
@@ -14,28 +14,36 @@ type AuthState = "loading" | "ready" | "error";
 
 function App() {
   const [authState, setAuthState] = useState<AuthState>("loading");
+  const [joinedLeagueId, setJoinedLeagueId] = useState<string | null>(null);
 
   useEffect(() => {
     initTelegramWebApp();
-
-    if (loadStoredToken()) {
-      setAuthState("ready");
-      return;
-    }
-
     const webApp = getTelegramWebApp();
-    if (!webApp?.initData) {
-      setAuthState("error");
-      return;
+
+    async function bootstrap() {
+      if (!loadStoredToken()) {
+        if (!webApp?.initData) {
+          setAuthState("error");
+          return;
+        }
+        const { token } = await api.loginWithTelegram(webApp.initData);
+        setAuthToken(token);
+      }
+
+      const inviteCode = webApp?.initDataUnsafe?.start_param;
+      if (inviteCode) {
+        try {
+          const { league } = await api.joinLeague(inviteCode);
+          setJoinedLeagueId(league.id);
+        } catch {
+          // invalid/expired invite link — fall through to the normal league list
+        }
+      }
+
+      setAuthState("ready");
     }
 
-    api
-      .loginWithTelegram(webApp.initData)
-      .then(({ token }) => {
-        setAuthToken(token);
-        setAuthState("ready");
-      })
-      .catch(() => setAuthState("error"));
+    bootstrap().catch(() => setAuthState("error"));
   }, []);
 
   if (authState === "loading") {
@@ -49,7 +57,10 @@ function App() {
     <HashRouter>
       <div className="app-shell">
         <Routes>
-          <Route path="/" element={<LeaguesPage />} />
+          <Route
+            path="/"
+            element={joinedLeagueId ? <Navigate to={`/leagues/${joinedLeagueId}`} replace /> : <LeaguesPage />}
+          />
           <Route path="/leagues" element={<LeaguesPage />} />
           <Route path="/leagues/new" element={<NewLeaguePage />} />
           <Route path="/leagues/:leagueId" element={<LeagueDetailPage />} />

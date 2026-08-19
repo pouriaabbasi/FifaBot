@@ -53,6 +53,9 @@ export const api = {
   generateFixture: (leagueId: string) =>
     request(`/api/leagues/${leagueId}/generate-fixture`, { method: "POST" }),
 
+  joinLeague: (inviteCode: string) =>
+    request<{ league: League }>(`/api/leagues/join/${inviteCode}`, { method: "POST" }),
+
   getStandings: (leagueId: string, stageId?: string) =>
     request<Standing[]>(`/api/leagues/${leagueId}/standings${stageId ? `?stageId=${stageId}` : ""}`),
 
@@ -73,8 +76,10 @@ export const api = {
 export interface League {
   id: string;
   name: string;
+  ownerId: string;
   status: "draft" | "active" | "finished";
   isTwoStage: boolean;
+  inviteCode: string;
   members: { id: string; userId: string }[];
   stages: { id: string; order: number; format: "round_robin" | "knockout"; status: string }[];
 }
