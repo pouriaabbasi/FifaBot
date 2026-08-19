@@ -1,0 +1,47 @@
+:root {
+  --pitch-1: #0a2016;
+  --pitch-2: #0e2c1c;
+  --pitch-3: #123822;
+  --card: rgba(255, 255, 255, 0.055);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --text: #eef5ef;
+  --text-dim: #9db8a8;
+  --text-faint: #6d8778;
+  --gold: #e8b73f;
+  --live: #5fe085;
+  --danger: #e2665a;
+  --sans: "Vazirmatn", system-ui, sans-serif;
+  --display: "Oswald", "Vazirmatn", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, #163a24 0%, transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, #1a4a2a 0%, transparent 55%),
+    linear-gradient(180deg, var(--pitch-1), var(--pitch-2) 45%, var(--pitch-1));
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--sans);
+  direction: rtl;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+}

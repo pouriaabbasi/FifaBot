@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeagueStatus {
+  draft
+  active
+  finished
+}
+
+enum StageFormat {
+  round_robin
+  knockout
+}
+
+enum StageStatus {
+  pending
+  active
+  done
+}
+
+enum MemberRole {
+  owner
+  admin
+  player
+}
+
+enum MatchStatus {
+  pending
+  played
+}
+
+enum NotificationType {
+  next_match
+  result_confirmed
+}
+
+model User {
+  telegramId    BigInt          @id
+  username      String?
+  firstName     String
+  photoUrl      String?
+  createdAt     DateTime        @default(now())
+
+  ownedLeagues  League[]        @relation("LeagueOwner")
+  memberships   LeagueMember[]
+  notifications Notification[]
+}
+
+model League {
+  id          String       @id @default(uuid())
+  name        String
+  ownerId     BigInt
+  owner       User         @relation("LeagueOwner", fields: [ownerId], references: [telegramId])
+  status      LeagueStatus @default(draft)
+  isTwoStage  Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  stages      LeagueStage[]
+  members     LeagueMember[]
+}
+
+model LeagueStage {
+  id          String      @id @default(uuid())
+  leagueId    String
+  league      League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  order       Int
+  format      StageFormat
+  qualifyTopN Int?
+  status      StageStatus @default(pending)
+
+  matches     Match[]
+
+  @@unique([leagueId, order])
+}
+
+model LeagueMember {
+  id         String     @id @default(uuid())
+  leagueId   String
+  league     League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId     BigInt
+  user       User       @relation(fields: [userId], references: [telegramId])
+  nickname   String?
+  role       MemberRole @default(player)
+  joinedAt   DateTime   @default(now())
+
+  homeMatches Match[] @relation("HomeMember")
+  awayMatches Match[] @relation("AwayMember")
+
+  @@unique([leagueId, userId])
+}
+
+model Match {
+  id           String       @id @default(uuid())
+  stageId      String
+  stage        LeagueStage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  homeMemberId String
+  homeMember   LeagueMember @relation("HomeMember", fields: [homeMemberId], references: [id])
+  awayMemberId String
+  awayMember   LeagueMember @relation("AwayMember", fields: [awayMemberId], references: [id])
+  round        Int?
+  status       MatchStatus  @default(pending)
+  homeScore    Int?
+  awayScore    Int?
+  playedAt     DateTime?
+
+  notifications Notification[]
+
+  @@index([stageId, status])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    BigInt
+  user      User             @relation(fields: [userId], references: [telegramId])
+  type      NotificationType
+  matchId   String
+  match     Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sentAt    DateTime         @default(now())
+
+  @@unique([userId, matchId, type])
+}
