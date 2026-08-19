@@ -4,6 +4,7 @@ import "./App.css";
 import { getTelegramWebApp, initTelegramWebApp } from "./telegram";
 import { api, loadStoredToken, setAuthToken } from "./api";
 import { BottomNav } from "./components/BottomNav";
+import { GlobalLoadingBar } from "./components/GlobalLoadingBar";
 import { LeaguesPage } from "./pages/LeaguesPage";
 import { NewLeaguePage } from "./pages/NewLeaguePage";
 import { LeagueDetailPage } from "./pages/LeagueDetailPage";
@@ -82,6 +83,7 @@ function App() {
 
   return (
     <HashRouter>
+      <GlobalLoadingBar />
       <div className="app-shell">
         <Routes>
           <Route

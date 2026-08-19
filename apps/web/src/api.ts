@@ -19,9 +19,23 @@ function clearAuthToken() {
 
 const REQUEST_TIMEOUT_MS = 20000;
 
+let inFlightCount = 0;
+const inFlightListeners = new Set<(count: number) => void>();
+
+export function subscribeInFlight(listener: (count: number) => void) {
+  inFlightListeners.add(listener);
+  return () => inFlightListeners.delete(listener);
+}
+
+function setInFlight(delta: 1 | -1) {
+  inFlightCount += delta;
+  inFlightListeners.forEach((l) => l(inFlightCount));
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  setInFlight(1);
 
   let res: Response;
   try {
@@ -41,6 +55,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error("اتصال به سرور برقرار نشد");
   } finally {
     clearTimeout(timeout);
+    setInFlight(-1);
   }
 
   if (res.status === 401) {

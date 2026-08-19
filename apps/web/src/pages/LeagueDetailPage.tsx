@@ -10,14 +10,18 @@ export function LeagueDetailPage() {
   const { leagueId } = useParams<{ leagueId: string }>();
   const [tab, setTab] = useState<"standings" | "matches">("standings");
   const [league, setLeague] = useState<League | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     if (!leagueId) return;
-    api.getLeagues().then((leagues) => {
-      setLeague(leagues.find((l) => l.id === leagueId) ?? null);
-    });
+    api
+      .getLeagues()
+      .then((leagues) => setLeague(leagues.find((l) => l.id === leagueId) ?? null))
+      .finally(() => setLoaded(true));
   }, [leagueId]);
+
+  if (!loaded) return <div className="loading-state">در حال بارگذاری…</div>;
 
   const isOwner = league && getCurrentTelegramId() === league.ownerId;
 
