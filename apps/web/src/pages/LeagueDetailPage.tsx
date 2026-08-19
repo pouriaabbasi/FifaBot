@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { StandingsPage } from "./StandingsPage";
 import { MatchesPage } from "./MatchesPage";
+import { AdminMatchesPage } from "./AdminMatchesPage";
 import { api } from "../api";
 import type { League } from "../api";
 import { getCurrentTelegramId, shareInviteLink } from "../telegram";
 
 export function LeagueDetailPage() {
   const { leagueId } = useParams<{ leagueId: string }>();
-  const [tab, setTab] = useState<"standings" | "matches">("standings");
+  const [tab, setTab] = useState<"standings" | "matches" | "admin">("standings");
   const [league, setLeague] = useState<League | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -130,8 +131,15 @@ export function LeagueDetailPage() {
         <button className={`stage-tab${tab === "matches" ? " active" : ""}`} onClick={() => setTab("matches")}>
           بازی‌ها
         </button>
+        {isOwner && (
+          <button className={`stage-tab${tab === "admin" ? " active" : ""}`} onClick={() => setTab("admin")}>
+            ثبت نتیجه
+          </button>
+        )}
       </div>
-      {tab === "standings" ? <StandingsPage key={leagueId} /> : <MatchesPage key={leagueId} />}
+      {tab === "standings" && <StandingsPage key={leagueId} />}
+      {tab === "matches" && <MatchesPage key={leagueId} />}
+      {tab === "admin" && isOwner && <AdminMatchesPage key={leagueId} />}
     </div>
   );
 }
