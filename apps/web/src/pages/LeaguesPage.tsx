@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import type { League } from "../api";
+import { JoinByCodeCard } from "../components/JoinByCodeCard";
 
 const statusPill: Record<League["status"], { label: string; cls: string }> = {
   draft: { label: "پیش‌نویس", cls: "draft" },
@@ -55,6 +56,8 @@ export function LeaguesPage() {
       )}
 
       {leagues.length === 0 && <div className="empty-state">هنوز عضو هیچ لیگی نیستی</div>}
+
+      <JoinByCodeCard onJoined={(leagueId) => navigate(`/leagues/${leagueId}`)} />
 
       <button className="fab-add" onClick={() => navigate("/leagues/new")}>
         ＋ ساخت لیگ جدید

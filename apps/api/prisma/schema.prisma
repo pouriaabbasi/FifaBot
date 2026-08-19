@@ -60,7 +60,7 @@ model League {
   owner       User         @relation("LeagueOwner", fields: [ownerId], references: [telegramId])
   status      LeagueStatus @default(draft)
   isTwoStage  Boolean      @default(false)
-  inviteCode  String       @unique @default(cuid())
+  inviteCode  String       @unique
   createdAt   DateTime     @default(now())
 
   stages      LeagueStage[]

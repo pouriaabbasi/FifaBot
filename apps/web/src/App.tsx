@@ -10,23 +10,33 @@ import { LeagueDetailPage } from "./pages/LeagueDetailPage";
 import { ResultEntryPage } from "./pages/ResultEntryPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
-type AuthState = "loading" | "ready" | "error";
+type AuthState = "loading" | "waking" | "ready" | "error";
 
 function App() {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [joinedLeagueId, setJoinedLeagueId] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     initTelegramWebApp();
     const webApp = getTelegramWebApp();
+    let cancelled = false;
+
+    // Render's free tier spins the API down after idle periods; the first
+    // request after a while can take 30-50s to cold-start. Surface that
+    // instead of leaving the screen blank while it loads.
+    const wakingTimer = setTimeout(() => {
+      if (!cancelled) setAuthState("waking");
+    }, 4000);
 
     async function bootstrap() {
       if (!loadStoredToken()) {
         if (!webApp?.initData) {
-          setAuthState("error");
+          if (!cancelled) setAuthState("error");
           return;
         }
         const { token } = await api.loginWithTelegram(webApp.initData);
+        if (cancelled) return;
         setAuthToken(token);
       }
 
@@ -34,23 +44,40 @@ function App() {
       if (inviteCode) {
         try {
           const { league } = await api.joinLeague(inviteCode);
-          setJoinedLeagueId(league.id);
+          if (!cancelled) setJoinedLeagueId(league.id);
         } catch {
           // invalid/expired invite link — fall through to the normal league list
         }
       }
 
-      setAuthState("ready");
+      if (!cancelled) setAuthState("ready");
     }
 
-    bootstrap().catch(() => setAuthState("error"));
-  }, []);
+    bootstrap().catch(() => {
+      if (!cancelled) setAuthState("error");
+    });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(wakingTimer);
+    };
+  }, [retryTick]);
 
   if (authState === "loading") {
     return <div className="loading-state">در حال ورود…</div>;
   }
+  if (authState === "waking") {
+    return <div className="loading-state">سرور در حال بیدار شدن است، کمی صبر کن…</div>;
+  }
   if (authState === "error") {
-    return <div className="empty-state">اپ را باید از داخل تلگرام باز کنی.</div>;
+    return (
+      <div className="empty-state">
+        <p>مشکلی در اتصال پیش آمد.</p>
+        <button className="btn-gold" style={{ marginTop: 14 }} onClick={() => setRetryTick((t) => t + 1)}>
+          تلاش دوباره
+        </button>
+      </div>
+    );
   }
 
   return (

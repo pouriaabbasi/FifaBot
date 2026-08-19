@@ -5,6 +5,7 @@ import { AuthedRequest, requireAuth } from "../authMiddleware";
 import { serializeBigInt } from "../serialize";
 import { generateRoundRobin, generateHomeAndAway, generateKnockoutRound1 } from "../fixtures";
 import { notifyNextMatch } from "../notifications";
+import { generateInviteCode } from "../inviteCode";
 
 export const leaguesRouter = Router();
 leaguesRouter.use(requireAuth);
@@ -40,22 +41,34 @@ leaguesRouter.post("/", async (req: AuthedRequest, res) => {
   const ownerId = BigInt(req.auth!.telegramId);
   const { name, isTwoStage, stages } = parsed.data;
 
-  const league = await prisma.league.create({
-    data: {
-      name,
-      isTwoStage,
-      ownerId,
-      members: { create: { userId: ownerId, role: "owner" } },
-      stages: { create: stages.map((s) => ({ order: s.order, format: s.format, qualifyTopN: s.qualifyTopN })) },
-    },
-    include: { stages: true, members: true },
-  });
+  let league;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      league = await prisma.league.create({
+        data: {
+          name,
+          isTwoStage,
+          ownerId,
+          inviteCode: generateInviteCode(),
+          members: { create: { userId: ownerId, role: "owner" } },
+          stages: { create: stages.map((s) => ({ order: s.order, format: s.format, qualifyTopN: s.qualifyTopN })) },
+        },
+        include: { stages: true, members: true },
+      });
+      break;
+    } catch (err: unknown) {
+      const isUniqueViolation = typeof err === "object" && err !== null && "code" in err && err.code === "P2002";
+      if (!isUniqueViolation || attempt === 4) throw err;
+    }
+  }
 
   res.status(201).json(serializeBigInt(league));
 });
 
 leaguesRouter.post("/join/:inviteCode", async (req: AuthedRequest, res) => {
-  const league = await prisma.league.findUnique({ where: { inviteCode: req.params.inviteCode } });
+  const league = await prisma.league.findUnique({
+    where: { inviteCode: req.params.inviteCode.trim().toUpperCase() },
+  });
   if (!league) return res.status(404).json({ error: "invalid invite link" });
   if (league.status !== "draft") return res.status(409).json({ error: "league already started" });
 
