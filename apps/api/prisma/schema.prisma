@@ -31,6 +31,11 @@ enum MemberRole {
   player
 }
 
+enum TeamStatus {
+  incomplete
+  complete
+}
+
 enum MatchStatus {
   pending
   played
@@ -50,7 +55,7 @@ model User {
   createdAt     DateTime        @default(now())
 
   ownedLeagues  League[]        @relation("LeagueOwner")
-  memberships   LeagueMember[]
+  memberships   LeagueMemberUser[]
   notifications Notification[]
 }
 
@@ -61,6 +66,7 @@ model League {
   owner       User         @relation("LeagueOwner", fields: [ownerId], references: [telegramId])
   status      LeagueStatus @default(draft)
   isTwoStage  Boolean      @default(false)
+  teamSize    Int          @default(1)
   inviteCode  String       @unique
   createdAt   DateTime     @default(now())
 
@@ -86,16 +92,24 @@ model LeagueMember {
   id         String     @id @default(uuid())
   leagueId   String
   league     League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  userId     BigInt
-  user       User       @relation(fields: [userId], references: [telegramId])
   nickname   String?
   role       MemberRole @default(player)
+  status     TeamStatus @default(complete)
   joinedAt   DateTime   @default(now())
 
-  homeMatches Match[] @relation("HomeMember")
-  awayMatches Match[] @relation("AwayMember")
+  users       LeagueMemberUser[]
+  homeMatches Match[]            @relation("HomeMember")
+  awayMatches Match[]            @relation("AwayMember")
+}
 
-  @@unique([leagueId, userId])
+model LeagueMemberUser {
+  id       String       @id @default(uuid())
+  memberId String
+  member   LeagueMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  userId   BigInt
+  user     User         @relation(fields: [userId], references: [telegramId])
+
+  @@unique([memberId, userId])
 }
 
 model Match {

@@ -5,6 +5,7 @@ import { api } from "../api";
 export function NewLeaguePage() {
   const [name, setName] = useState("");
   const [isTwoStage, setIsTwoStage] = useState(false);
+  const [teamSize, setTeamSize] = useState<1 | 2>(1);
   const [format, setFormat] = useState<"round_robin" | "knockout">("round_robin");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export function NewLeaguePage() {
       const league = await api.createLeague({
         name: name.trim(),
         isTwoStage,
+        teamSize,
         stages: [{ order: 1, format }],
       });
       navigate(`/leagues/${league.id}`);
@@ -53,6 +55,16 @@ export function NewLeaguePage() {
           onClick={() => setFormat("knockout")}
         >
           حذفی
+        </button>
+      </div>
+
+      <div className="section-label">نوع تیم</div>
+      <div className="stage-tabs">
+        <button className={`stage-tab${teamSize === 1 ? " active" : ""}`} onClick={() => setTeamSize(1)}>
+          تک‌نفره
+        </button>
+        <button className={`stage-tab${teamSize === 2 ? " active" : ""}`} onClick={() => setTeamSize(2)}>
+          دونفره
         </button>
       </div>
 

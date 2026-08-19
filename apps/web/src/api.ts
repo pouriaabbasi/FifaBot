@@ -82,14 +82,9 @@ export const api = {
   createLeague: (payload: {
     name: string;
     isTwoStage: boolean;
+    teamSize?: 1 | 2;
     stages: { order: number; format: "round_robin" | "knockout"; qualifyTopN?: number }[];
   }) => request<League>("/api/leagues", { method: "POST", body: JSON.stringify(payload) }),
-
-  addMember: (leagueId: string, telegramId: string, nickname?: string) =>
-    request(`/api/leagues/${leagueId}/members`, {
-      method: "POST",
-      body: JSON.stringify({ telegramId, nickname }),
-    }),
 
   generateFixture: (leagueId: string) =>
     request(`/api/leagues/${leagueId}/generate-fixture`, { method: "POST" }),
@@ -98,7 +93,22 @@ export const api = {
     request(`/api/leagues/${leagueId}/members/${memberId}`, { method: "DELETE" }),
 
   joinLeague: (inviteCode: string) =>
-    request<{ league: League }>(`/api/leagues/join/${inviteCode}`, { method: "POST" }),
+    request<{ league: League; member: LeagueMember }>(`/api/leagues/join/${inviteCode}`, { method: "POST" }),
+
+  getIncompleteTeams: (leagueId: string) =>
+    request<LeagueMember[]>(`/api/leagues/${leagueId}/incomplete-teams`),
+
+  pairTeam: (leagueId: string, targetMemberId: string, sourceMemberId?: string) =>
+    request<LeagueMember>(`/api/leagues/${leagueId}/teams/${targetMemberId}/pair`, {
+      method: "POST",
+      body: JSON.stringify(sourceMemberId ? { memberId: sourceMemberId } : {}),
+    }),
+
+  setTeamName: (leagueId: string, memberId: string, name: string | null) =>
+    request<LeagueMember>(`/api/leagues/${leagueId}/teams/${memberId}/name`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
 
   getStandings: (leagueId: string, stageId?: string) =>
     request<Standing[]>(`/api/leagues/${leagueId}/standings${stageId ? `?stageId=${stageId}` : ""}`),
@@ -132,26 +142,29 @@ export const api = {
     }),
 };
 
+export interface LeagueMember {
+  id: string;
+  role: "owner" | "admin" | "player";
+  status: "incomplete" | "complete";
+  nickname: string | null;
+  users: { userId: string; user: { firstName: string; nickname: string | null; photoUrl: string | null } }[];
+}
+
 export interface League {
   id: string;
   name: string;
   ownerId: string;
   status: "draft" | "active" | "finished";
   isTwoStage: boolean;
+  teamSize: number;
   inviteCode: string;
-  members: {
-    id: string;
-    userId: string;
-    role: "owner" | "admin" | "player";
-    nickname: string | null;
-    user: { firstName: string; nickname: string | null; photoUrl: string | null };
-  }[];
+  members: LeagueMember[];
   stages: { id: string; order: number; format: "round_robin" | "knockout"; status: string }[];
 }
 
 export interface Standing {
   memberId: string;
-  telegramId: string;
+  memberUserIds: string[];
   name: string;
   played: number;
   won: number;
@@ -192,12 +205,12 @@ export interface Match {
   homeScore: number | null;
   awayScore: number | null;
   playedAt: string | null;
-  homeMember: MemberRef;
-  awayMember: MemberRef;
+  homeMember: MatchMemberRef;
+  awayMember: MatchMemberRef;
 }
 
-interface MemberRef {
+interface MatchMemberRef {
   id: string;
   nickname: string | null;
-  user: { firstName: string; nickname: string | null };
+  users: { userId: string; user: { firstName: string; nickname: string | null } }[];
 }

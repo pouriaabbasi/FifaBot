@@ -11,13 +11,15 @@ matchesRouter.use(requireAuth);
 const leagueMatchesRouter = Router({ mergeParams: true });
 leagueMatchesRouter.use(requireAuth);
 
+const memberInclude = { users: { include: { user: true } } } as const;
+
 leagueMatchesRouter.get("/", async (req: AuthedRequest, res) => {
   const status = req.query.status as "pending" | "played" | undefined;
   const mine = req.query.mine === "true";
 
   const member = mine
-    ? await prisma.leagueMember.findUnique({
-        where: { leagueId_userId: { leagueId: req.params.id, userId: BigInt(req.auth!.telegramId) } },
+    ? await prisma.leagueMember.findFirst({
+        where: { leagueId: req.params.id, users: { some: { userId: BigInt(req.auth!.telegramId) } } },
       })
     : null;
 
@@ -27,7 +29,7 @@ leagueMatchesRouter.get("/", async (req: AuthedRequest, res) => {
       ...(status ? { status } : {}),
       ...(member ? { OR: [{ homeMemberId: member.id }, { awayMemberId: member.id }] } : {}),
     },
-    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+    include: { homeMember: { include: memberInclude }, awayMember: { include: memberInclude } },
   });
 
   res.json(serializeBigInt(matches));
@@ -38,7 +40,7 @@ export { leagueMatchesRouter };
 matchesRouter.get("/:id", async (req: AuthedRequest, res) => {
   const match = await prisma.match.findUnique({
     where: { id: req.params.id },
-    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+    include: { homeMember: { include: memberInclude }, awayMember: { include: memberInclude } },
   });
   if (!match) return res.status(404).json({ error: "match not found" });
   res.json(serializeBigInt(match));
@@ -72,7 +74,7 @@ matchesRouter.patch("/:id/result", async (req: AuthedRequest, res) => {
       playedAt: wasAlreadyPlayed ? match.playedAt! : new Date(),
       status: "played",
     },
-    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+    include: { homeMember: { include: memberInclude }, awayMember: { include: memberInclude } },
   });
 
   if (wasAlreadyPlayed) {
@@ -87,7 +89,7 @@ matchesRouter.patch("/:id/result", async (req: AuthedRequest, res) => {
 matchesRouter.delete("/:id/result", async (req: AuthedRequest, res) => {
   const match = await prisma.match.findUnique({
     where: { id: req.params.id },
-    include: { stage: { include: { league: true } }, homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+    include: { stage: { include: { league: true } }, homeMember: { include: memberInclude }, awayMember: { include: memberInclude } },
   });
   if (!match) return res.status(404).json({ error: "match not found" });
 
@@ -98,7 +100,7 @@ matchesRouter.delete("/:id/result", async (req: AuthedRequest, res) => {
   const cleared = await prisma.match.update({
     where: { id: req.params.id },
     data: { homeScore: null, awayScore: null, playedAt: null, status: "pending" },
-    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+    include: { homeMember: { include: memberInclude }, awayMember: { include: memberInclude } },
   });
 
   await notifyResultCleared({ ...cleared, homeScore: match.homeScore, awayScore: match.awayScore }, match.stage.leagueId);

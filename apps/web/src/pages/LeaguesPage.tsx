@@ -98,7 +98,7 @@ function LeagueCard({ league }: { league: League }) {
       <div className="league-info">
         <div className="league-name">{league.name}</div>
         <div className="league-meta">
-          {league.members.length} بازیکن
+          {league.members.length} {league.teamSize === 2 ? "تیم" : "بازیکن"}
           <span className="dot" />
           {league.isTwoStage ? "دو‌مرحله‌ای" : primaryFormat}
         </div>

@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { prisma } from "./prisma";
-import type { Match, LeagueMember, User } from "@prisma/client";
+import type { Match, LeagueMember, User, LeagueMemberUser } from "@prisma/client";
 import { displayName } from "./displayName";
 
 let bot: TelegramBot | null = null;
@@ -12,28 +12,32 @@ export function getBot() {
   return bot;
 }
 
-type MemberWithUser = LeagueMember & { user: User };
-type MatchWithMembers = Match & { homeMember: MemberWithUser; awayMember: MemberWithUser };
+type MemberWithUsers = LeagueMember & { users: (LeagueMemberUser & { user: User })[] };
+type MatchWithMembers = Match & { homeMember: MemberWithUsers; awayMember: MemberWithUsers };
 
-function memberLabel(member: MemberWithUser) {
-  return displayName(member, member.user);
+function memberLabel(member: MemberWithUsers) {
+  return displayName(member, member.users.map((u) => u.user));
+}
+
+function memberUserIds(member: MemberWithUsers) {
+  return member.users.map((u) => u.userId);
 }
 
 export async function notifyNextMatch(match: MatchWithMembers) {
   const homeName = memberLabel(match.homeMember);
   const awayName = memberLabel(match.awayMember);
   const text = `⚽ بازی جدید آماده است: ${homeName} مقابل ${awayName}`;
-  await sendOnce(match.homeMember.userId, match.id, "next_match", text);
-  await sendOnce(match.awayMember.userId, match.id, "next_match", text);
+  await Promise.all([
+    ...memberUserIds(match.homeMember).map((userId) => sendOnce(userId, match.id, "next_match", text)),
+    ...memberUserIds(match.awayMember).map((userId) => sendOnce(userId, match.id, "next_match", text)),
+  ]);
 }
 
 export async function notifyResultConfirmed(match: MatchWithMembers, leagueId: string) {
   const homeName = memberLabel(match.homeMember);
   const awayName = memberLabel(match.awayMember);
   const text = `✅ نتیجه ثبت شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
-
-  const members = await prisma.leagueMember.findMany({ where: { leagueId } });
-  await Promise.all(members.map((m) => sendOnce(m.userId, match.id, "result_confirmed", text)));
+  await broadcastToLeague(leagueId, match.id, "result_confirmed", text);
 }
 
 export async function notifyResultUpdated(match: MatchWithMembers, leagueId: string) {
@@ -51,15 +55,16 @@ export async function notifyResultCleared(match: MatchWithMembers, leagueId: str
 }
 
 async function broadcastToLeague(leagueId: string, matchId: string, type: "next_match" | "result_confirmed", text: string) {
-  const members = await prisma.leagueMember.findMany({ where: { leagueId } });
+  const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
   const client = getBot();
+  const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
   await Promise.all(
-    members.map(async (m) => {
+    userIds.map(async (userId) => {
       if (!client) return;
       try {
-        await client.sendMessage(m.userId.toString(), text);
+        await client.sendMessage(userId.toString(), text);
       } catch (err) {
-        console.error("telegram broadcast failed", { userId: m.userId.toString(), matchId, type, err });
+        console.error("telegram broadcast failed", { userId: userId.toString(), matchId, type, err });
       }
     })
   );

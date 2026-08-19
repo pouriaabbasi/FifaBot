@@ -20,8 +20,8 @@ async function assertOwner(leagueId: string, telegramId: string) {
 
 leaguesRouter.get("/", async (req: AuthedRequest, res) => {
   const leagues = await prisma.league.findMany({
-    where: { members: { some: { userId: BigInt(req.auth!.telegramId) } } },
-    include: { members: { include: { user: true } }, stages: true },
+    where: { members: { some: { users: { some: { userId: BigInt(req.auth!.telegramId) } } } } },
+    include: { members: { include: { users: { include: { user: true } } } }, stages: true },
     orderBy: { createdAt: "desc" },
   });
   res.json(serializeBigInt(leagues));
@@ -30,6 +30,7 @@ leaguesRouter.get("/", async (req: AuthedRequest, res) => {
 const createSchema = z.object({
   name: z.string().min(1).max(80),
   isTwoStage: z.boolean().default(false),
+  teamSize: z.union([z.literal(1), z.literal(2)]).default(1),
   stages: z
     .array(z.object({ order: z.number().int().min(1).max(2), format: z.enum(["round_robin", "knockout"]), qualifyTopN: z.number().int().positive().optional() }))
     .min(1),
@@ -40,7 +41,7 @@ leaguesRouter.post("/", async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const ownerId = BigInt(req.auth!.telegramId);
-  const { name, isTwoStage, stages } = parsed.data;
+  const { name, isTwoStage, teamSize, stages } = parsed.data;
 
   let league;
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -49,12 +50,13 @@ leaguesRouter.post("/", async (req: AuthedRequest, res) => {
         data: {
           name,
           isTwoStage,
+          teamSize,
           ownerId,
           inviteCode: generateInviteCode(),
-          members: { create: { userId: ownerId, role: "owner" } },
+          members: { create: { role: "owner", status: "complete", users: { create: { userId: ownerId } } } },
           stages: { create: stages.map((s) => ({ order: s.order, format: s.format, qualifyTopN: s.qualifyTopN })) },
         },
-        include: { stages: true, members: true },
+        include: { stages: true, members: { include: { users: true } } },
       });
       break;
     } catch (err: unknown) {
@@ -66,6 +68,13 @@ leaguesRouter.post("/", async (req: AuthedRequest, res) => {
   res.status(201).json(serializeBigInt(league));
 });
 
+async function findMembershipForUser(leagueId: string, userId: bigint) {
+  return prisma.leagueMember.findFirst({
+    where: { leagueId, users: { some: { userId } } },
+    include: { users: true },
+  });
+}
+
 leaguesRouter.post("/join/:inviteCode", async (req: AuthedRequest, res) => {
   const league = await prisma.league.findFirst({
     where: { inviteCode: { equals: req.params.inviteCode.trim(), mode: "insensitive" } },
@@ -74,29 +83,97 @@ leaguesRouter.post("/join/:inviteCode", async (req: AuthedRequest, res) => {
   if (league.status !== "draft") return res.status(409).json({ error: "league already started" });
 
   const userId = BigInt(req.auth!.telegramId);
-  const existing = await prisma.leagueMember.findUnique({
-    where: { leagueId_userId: { leagueId: league.id, userId } },
-  });
+  const existing = await findMembershipForUser(league.id, userId);
   if (existing) return res.json(serializeBigInt({ league, member: existing }));
 
-  const member = await prisma.leagueMember.create({ data: { leagueId: league.id, userId } });
+  const member = await prisma.leagueMember.create({
+    data: {
+      leagueId: league.id,
+      status: league.teamSize === 1 ? "complete" : "incomplete",
+      users: { create: { userId } },
+    },
+    include: { users: true },
+  });
   res.status(201).json(serializeBigInt({ league, member }));
 });
 
-const addMemberSchema = z.object({ telegramId: z.string(), nickname: z.string().optional() });
+leaguesRouter.get("/:id/incomplete-teams", async (req: AuthedRequest, res) => {
+  const members = await prisma.leagueMember.findMany({
+    where: { leagueId: req.params.id, status: "incomplete" },
+    include: { users: { include: { user: true } } },
+  });
+  res.json(serializeBigInt(members));
+});
 
-leaguesRouter.post("/:id/members", async (req: AuthedRequest, res) => {
-  const owner = await assertOwner(req.params.id, req.auth!.telegramId);
-  if (!owner) return res.status(404).json({ error: "league not found" });
-  if (owner === "forbidden") return res.status(403).json({ error: "owner only" });
+const pairSchema = z.object({ memberId: z.string() });
 
-  const parsed = addMemberSchema.safeParse(req.body);
+leaguesRouter.post("/:id/teams/:memberId/pair", async (req: AuthedRequest, res) => {
+  const league = await prisma.league.findUnique({ where: { id: req.params.id } });
+  if (!league) return res.status(404).json({ error: "league not found" });
+  if (league.teamSize !== 2) return res.status(400).json({ error: "league is not team-based" });
+
+  const target = await prisma.leagueMember.findUnique({ where: { id: req.params.memberId }, include: { users: true } });
+  if (!target || target.leagueId !== req.params.id) return res.status(404).json({ error: "team not found" });
+  if (target.status !== "incomplete") return res.status(409).json({ error: "team is already complete" });
+
+  const userId = BigInt(req.auth!.telegramId);
+  const isOwner = league.ownerId.toString() === req.auth!.telegramId;
+
+  let sourceMemberId: string;
+  if (isOwner && req.body?.memberId) {
+    const parsed = pairSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const source = await prisma.leagueMember.findUnique({ where: { id: parsed.data.memberId }, include: { users: true } });
+    if (!source || source.leagueId !== req.params.id || source.status !== "incomplete") {
+      return res.status(404).json({ error: "source team not found" });
+    }
+    sourceMemberId = source.id;
+  } else {
+    const own = await findMembershipForUser(req.params.id, userId);
+    if (!own || own.status !== "incomplete") return res.status(403).json({ error: "you have no incomplete team to pair" });
+    if (own.id === target.id) return res.status(400).json({ error: "cannot pair a team with itself" });
+    sourceMemberId = own.id;
+  }
+
+  const source = await prisma.leagueMember.findUnique({ where: { id: sourceMemberId }, include: { users: true } });
+  if (!source) return res.status(404).json({ error: "source team not found" });
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.leagueMemberUser.updateMany({
+      where: { memberId: source.id },
+      data: { memberId: target.id },
+    });
+    await tx.leagueMember.delete({ where: { id: source.id } });
+    return tx.leagueMember.update({
+      where: { id: target.id },
+      data: { status: "complete" },
+      include: { users: { include: { user: true } } },
+    });
+  });
+
+  res.json(serializeBigInt(updated));
+});
+
+const teamNameSchema = z.object({ name: z.string().trim().max(40).nullable() });
+
+leaguesRouter.patch("/:id/teams/:memberId/name", async (req: AuthedRequest, res) => {
+  const member = await findMembershipForUser(req.params.id, BigInt(req.auth!.telegramId));
+  const league = await prisma.league.findUnique({ where: { id: req.params.id } });
+  const isOwner = league?.ownerId.toString() === req.auth!.telegramId;
+  if ((!member || member.id !== req.params.memberId) && !isOwner) {
+    return res.status(403).json({ error: "not a member of this team" });
+  }
+
+  const parsed = teamNameSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const member = await prisma.leagueMember.create({
-    data: { leagueId: req.params.id, userId: BigInt(parsed.data.telegramId), nickname: parsed.data.nickname },
+  const nickname = parsed.data.name && parsed.data.name.length > 0 ? parsed.data.name : null;
+  const updated = await prisma.leagueMember.update({
+    where: { id: req.params.memberId },
+    data: { nickname },
+    include: { users: { include: { user: true } } },
   });
-  res.status(201).json(serializeBigInt(member));
+  res.json(serializeBigInt(updated));
 });
 
 leaguesRouter.delete("/:id/members/:memberId", async (req: AuthedRequest, res) => {
@@ -127,8 +204,14 @@ leaguesRouter.post("/:id/generate-fixture", async (req: AuthedRequest, res) => {
   });
   if (!stage) return res.status(400).json({ error: "no stage defined" });
 
-  const members = await prisma.leagueMember.findMany({ where: { leagueId: req.params.id } });
-  if (members.length < 2) return res.status(400).json({ error: "need at least 2 members" });
+  const allMembers = await prisma.leagueMember.findMany({ where: { leagueId: req.params.id } });
+  const incomplete = allMembers.filter((m) => m.status === "incomplete");
+  if (incomplete.length > 0) {
+    return res.status(409).json({ error: "some teams are still incomplete", count: incomplete.length });
+  }
+
+  const members = allMembers.filter((m) => m.status === "complete");
+  if (members.length < 2) return res.status(400).json({ error: "need at least 2 teams" });
 
   const pairings =
     stage.format === "round_robin"
@@ -150,7 +233,10 @@ leaguesRouter.post("/:id/generate-fixture", async (req: AuthedRequest, res) => {
 
   const created = await prisma.match.findMany({
     where: { stageId: stage.id },
-    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+    include: {
+      homeMember: { include: { users: { include: { user: true } } } },
+      awayMember: { include: { users: { include: { user: true } } } },
+    },
   });
   await Promise.all(created.map((m) => notifyNextMatch(m)));
 
@@ -197,7 +283,10 @@ leaguesRouter.post("/:id/advance-stage", async (req: AuthedRequest, res) => {
 
   const created = await prisma.match.findMany({
     where: { stageId: stage2.id },
-    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+    include: {
+      homeMember: { include: { users: { include: { user: true } } } },
+      awayMember: { include: { users: { include: { user: true } } } },
+    },
   });
   await Promise.all(created.map((m) => notifyNextMatch(m)));
 
@@ -218,7 +307,7 @@ leaguesRouter.get("/:id/standings", async (req: AuthedRequest, res) => {
 export async function computeStandings(stageId: string) {
   const members = await prisma.leagueMember.findMany({
     where: { OR: [{ homeMatches: { some: { stageId } } }, { awayMatches: { some: { stageId } } }] },
-    include: { user: true },
+    include: { users: { include: { user: true } } },
   });
   const matches = await prisma.match.findMany({ where: { stageId, status: "played" } });
 
@@ -239,8 +328,8 @@ export async function computeStandings(stageId: string) {
     }
     return {
       memberId: m.id,
-      telegramId: m.userId.toString(),
-      name: displayName(m, m.user),
+      memberUserIds: m.users.map((u) => u.userId.toString()),
+      name: displayName(m, m.users.map((u) => u.user)),
       played, won, drawn, lost, gf, ga,
       goalDiff: gf - ga,
       points: won * 3 + drawn,

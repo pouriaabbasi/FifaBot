@@ -1,6 +1,18 @@
 import type { User } from "@prisma/client";
 
-/** League-scoped nickname wins, then the user's global nickname, then their Telegram first name. */
-export function displayName(member: { nickname: string | null }, user: Pick<User, "nickname" | "firstName">) {
-  return member.nickname ?? user.nickname ?? user.firstName;
+type UserLike = Pick<User, "nickname" | "firstName">;
+
+function userLabel(user: UserLike) {
+  return user.nickname ?? user.firstName;
+}
+
+/**
+ * League-scoped team nickname wins. Otherwise: a solo team shows the
+ * player's own nickname/name, a paired team shows "A و B".
+ */
+export function displayName(member: { nickname: string | null }, users: UserLike[]): string {
+  if (member.nickname) return member.nickname;
+  if (users.length === 0) return "?";
+  if (users.length === 1) return userLabel(users[0]);
+  return users.map(userLabel).join(" و ");
 }

@@ -32,7 +32,7 @@ profileRouter.get("/stats", async (req: AuthedRequest, res) => {
   const userId = BigInt(req.auth!.telegramId);
 
   const memberships = await prisma.leagueMember.findMany({
-    where: { userId },
+    where: { users: { some: { userId } } },
     include: { league: true },
   });
 
