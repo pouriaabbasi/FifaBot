@@ -79,6 +79,23 @@ export function LeagueDetailPage() {
         </div>
       )}
 
+      {league && league.status === "draft" && (
+        <div className="card">
+          <div className="field-label" style={{ marginTop: 0 }}>
+            بازیکنان ({league.members.length})
+          </div>
+          {league.members.map((m) => (
+            <div key={m.id} className="match-row" style={{ padding: "8px 0" }}>
+              <div className="side">
+                <div className="avatar">{(m.nickname ?? m.user.firstName).charAt(0)}</div>
+                <span className="pname-sm">{m.nickname ?? m.user.firstName}</span>
+              </div>
+              {m.role === "owner" && <span className="pill done">ادمین</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="stage-tabs">
         <button className={`stage-tab${tab === "standings" ? " active" : ""}`} onClick={() => setTab("standings")}>
           جدول

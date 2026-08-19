@@ -121,7 +121,13 @@ export interface League {
   status: "draft" | "active" | "finished";
   isTwoStage: boolean;
   inviteCode: string;
-  members: { id: string; userId: string }[];
+  members: {
+    id: string;
+    userId: string;
+    role: "owner" | "admin" | "player";
+    nickname: string | null;
+    user: { firstName: string; photoUrl: string | null };
+  }[];
   stages: { id: string; order: number; format: "round_robin" | "knockout"; status: string }[];
 }
 

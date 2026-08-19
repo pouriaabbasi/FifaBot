@@ -20,7 +20,7 @@ async function assertOwner(leagueId: string, telegramId: string) {
 leaguesRouter.get("/", async (req: AuthedRequest, res) => {
   const leagues = await prisma.league.findMany({
     where: { members: { some: { userId: BigInt(req.auth!.telegramId) } } },
-    include: { members: true, stages: true },
+    include: { members: { include: { user: true } }, stages: true },
     orderBy: { createdAt: "desc" },
   });
   res.json(serializeBigInt(leagues));
