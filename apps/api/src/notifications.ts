@@ -28,15 +28,35 @@ async function sendOnce(userId: bigint, matchId: string, type: "next_match" | "r
   const existing = await prisma.notification.findUnique({
     where: { userId_matchId_type: { userId, matchId, type } },
   });
-  if (existing) return;
-
-  await prisma.notification.create({ data: { userId, matchId, type } });
+  // Only skip if it already went through — a previously failed attempt is retried.
+  if (existing?.delivered) return;
 
   const client = getBot();
-  if (!client) return;
+  if (!client) {
+    await upsertNotification(userId, matchId, type, false, "BOT_TOKEN not configured");
+    return;
+  }
+
   try {
     await client.sendMessage(userId.toString(), text);
+    await upsertNotification(userId, matchId, type, true, null);
   } catch (err) {
-    console.error("telegram notify failed", err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("telegram notify failed", { userId: userId.toString(), matchId, type, message });
+    await upsertNotification(userId, matchId, type, false, message);
   }
+}
+
+async function upsertNotification(
+  userId: bigint,
+  matchId: string,
+  type: "next_match" | "result_confirmed",
+  delivered: boolean,
+  error: string | null
+) {
+  await prisma.notification.upsert({
+    where: { userId_matchId_type: { userId, matchId, type } },
+    update: { delivered, error, sentAt: new Date() },
+    create: { userId, matchId, type, delivered, error },
+  });
 }
