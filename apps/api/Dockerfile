@@ -1,5 +1,6 @@
 FROM node:20-slim AS build
 WORKDIR /app
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
@@ -11,6 +12,7 @@ RUN npm run build --workspace=apps/api
 
 FROM node:20-slim AS runtime
 WORKDIR /app
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 
 COPY --from=build /app/node_modules /app/node_modules
