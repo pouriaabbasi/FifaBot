@@ -103,6 +103,10 @@ leaguesRouter.delete("/:id/members/:memberId", async (req: AuthedRequest, res) =
   if (!owner) return res.status(404).json({ error: "league not found" });
   if (owner === "forbidden") return res.status(403).json({ error: "owner only" });
 
+  const member = await prisma.leagueMember.findUnique({ where: { id: req.params.memberId } });
+  if (!member || member.leagueId !== req.params.id) return res.status(404).json({ error: "member not found" });
+  if (member.role === "owner") return res.status(400).json({ error: "cannot remove the league owner" });
+
   const hasMatches = await prisma.match.findFirst({
     where: { OR: [{ homeMemberId: req.params.memberId }, { awayMemberId: req.params.memberId }] },
   });

@@ -12,13 +12,17 @@ export function LeagueDetailPage() {
   const [league, setLeague] = useState<League | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  async function reload() {
+    if (!leagueId) return;
+    const leagues = await api.getLeagues();
+    setLeague(leagues.find((l) => l.id === leagueId) ?? null);
+  }
 
   useEffect(() => {
     if (!leagueId) return;
-    api
-      .getLeagues()
-      .then((leagues) => setLeague(leagues.find((l) => l.id === leagueId) ?? null))
-      .finally(() => setLoaded(true));
+    reload().finally(() => setLoaded(true));
   }, [leagueId]);
 
   if (!loaded) return <div className="loading-state">در حال بارگذاری…</div>;
@@ -30,10 +34,20 @@ export function LeagueDetailPage() {
     setStarting(true);
     try {
       await api.generateFixture(leagueId);
-      const leagues = await api.getLeagues();
-      setLeague(leagues.find((l) => l.id === leagueId) ?? null);
+      await reload();
     } finally {
       setStarting(false);
+    }
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    if (!leagueId) return;
+    setRemovingId(memberId);
+    try {
+      await api.removeMember(leagueId, memberId);
+      await reload();
+    } finally {
+      setRemovingId(null);
     }
   }
 
@@ -90,7 +104,20 @@ export function LeagueDetailPage() {
                 <div className="avatar">{(m.nickname ?? m.user.firstName).charAt(0)}</div>
                 <span className="pname-sm">{m.nickname ?? m.user.firstName}</span>
               </div>
-              {m.role === "owner" && <span className="pill done">ادمین</span>}
+              {m.role === "owner" ? (
+                <span className="pill done">ادمین</span>
+              ) : (
+                isOwner && (
+                  <button
+                    className="btn-gold"
+                    style={{ width: "auto", padding: "4px 12px", fontSize: "0.72rem", background: "none", border: "1px solid var(--danger)", color: "var(--danger)", boxShadow: "none" }}
+                    disabled={removingId === m.id}
+                    onClick={() => handleRemoveMember(m.id)}
+                  >
+                    {removingId === m.id ? "…" : "حذف"}
+                  </button>
+                )
+              )}
             </div>
           ))}
         </div>

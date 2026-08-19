@@ -94,6 +94,9 @@ export const api = {
   generateFixture: (leagueId: string) =>
     request(`/api/leagues/${leagueId}/generate-fixture`, { method: "POST" }),
 
+  removeMember: (leagueId: string, memberId: string) =>
+    request(`/api/leagues/${leagueId}/members/${memberId}`, { method: "DELETE" }),
+
   joinLeague: (inviteCode: string) =>
     request<{ league: League }>(`/api/leagues/join/${inviteCode}`, { method: "POST" }),
 
