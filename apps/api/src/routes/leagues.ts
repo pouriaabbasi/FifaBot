@@ -147,7 +147,10 @@ leaguesRouter.post("/:id/generate-fixture", async (req: AuthedRequest, res) => {
     prisma.league.update({ where: { id: req.params.id }, data: { status: "active" } }),
   ]);
 
-  const created = await prisma.match.findMany({ where: { stageId: stage.id }, include: { homeMember: true, awayMember: true } });
+  const created = await prisma.match.findMany({
+    where: { stageId: stage.id },
+    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+  });
   await Promise.all(created.map((m) => notifyNextMatch(m)));
 
   res.status(201).json(serializeBigInt(created));
@@ -191,7 +194,10 @@ leaguesRouter.post("/:id/advance-stage", async (req: AuthedRequest, res) => {
     prisma.leagueStage.update({ where: { id: stage1.id }, data: { status: "done" } }),
   ]);
 
-  const created = await prisma.match.findMany({ where: { stageId: stage2.id }, include: { homeMember: true, awayMember: true } });
+  const created = await prisma.match.findMany({
+    where: { stageId: stage2.id },
+    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
+  });
   await Promise.all(created.map((m) => notifyNextMatch(m)));
 
   res.status(201).json(serializeBigInt(created));

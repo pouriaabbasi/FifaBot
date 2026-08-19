@@ -70,10 +70,10 @@ matchesRouter.patch("/:id/result", async (req: AuthedRequest, res) => {
       playedAt: new Date(),
       status: "played",
     },
-    include: { homeMember: true, awayMember: true },
+    include: { homeMember: { include: { user: true } }, awayMember: { include: { user: true } } },
   });
 
-  await notifyResultConfirmed(updated);
+  await notifyResultConfirmed(updated, match.stage.leagueId);
 
   res.json(serializeBigInt(updated));
 });

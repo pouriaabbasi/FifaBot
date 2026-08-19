@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { prisma } from "./prisma";
-import type { Match, LeagueMember } from "@prisma/client";
+import type { Match, LeagueMember, User } from "@prisma/client";
 
 let bot: TelegramBot | null = null;
 
@@ -11,17 +11,28 @@ export function getBot() {
   return bot;
 }
 
-type MatchWithMembers = Match & { homeMember: LeagueMember; awayMember: LeagueMember };
+type MemberWithUser = LeagueMember & { user: User };
+type MatchWithMembers = Match & { homeMember: MemberWithUser; awayMember: MemberWithUser };
 
-export async function notifyNextMatch(match: MatchWithMembers) {
-  await sendOnce(match.homeMember.userId, match.id, "next_match", `⚽ بازی جدید آماده است. حریف: بازیکن ${match.awayMemberId.slice(0, 6)}`);
-  await sendOnce(match.awayMember.userId, match.id, "next_match", `⚽ بازی جدید آماده است. حریف: بازیکن ${match.homeMemberId.slice(0, 6)}`);
+function memberLabel(member: MemberWithUser) {
+  return member.nickname ?? member.user.firstName;
 }
 
-export async function notifyResultConfirmed(match: MatchWithMembers) {
-  const text = `✅ نتیجه ثبت شد: ${match.homeScore} - ${match.awayScore}`;
-  await sendOnce(match.homeMember.userId, match.id, "result_confirmed", text);
-  await sendOnce(match.awayMember.userId, match.id, "result_confirmed", text);
+export async function notifyNextMatch(match: MatchWithMembers) {
+  const homeName = memberLabel(match.homeMember);
+  const awayName = memberLabel(match.awayMember);
+  const text = `⚽ بازی جدید آماده است: ${homeName} مقابل ${awayName}`;
+  await sendOnce(match.homeMember.userId, match.id, "next_match", text);
+  await sendOnce(match.awayMember.userId, match.id, "next_match", text);
+}
+
+export async function notifyResultConfirmed(match: MatchWithMembers, leagueId: string) {
+  const homeName = memberLabel(match.homeMember);
+  const awayName = memberLabel(match.awayMember);
+  const text = `✅ نتیجه ثبت شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
+
+  const members = await prisma.leagueMember.findMany({ where: { leagueId } });
+  await Promise.all(members.map((m) => sendOnce(m.userId, match.id, "result_confirmed", text)));
 }
 
 async function sendOnce(userId: bigint, matchId: string, type: "next_match" | "result_confirmed", text: string) {
