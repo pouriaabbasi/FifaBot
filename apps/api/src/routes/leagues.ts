@@ -4,7 +4,7 @@ import { prisma } from "../prisma";
 import { AuthedRequest, requireAuth } from "../authMiddleware";
 import { serializeBigInt } from "../serialize";
 import { generateRoundRobin, generateHomeAndAway, generateKnockoutRound1 } from "../fixtures";
-import { notifyNextMatch } from "../notifications";
+import { notifyNextMatch, notifyMemberJoined } from "../notifications";
 import { generateInviteCode } from "../inviteCode";
 import { displayName } from "../displayName";
 
@@ -92,8 +92,9 @@ leaguesRouter.post("/join/:inviteCode", async (req: AuthedRequest, res) => {
       status: league.teamSize === 1 ? "complete" : "incomplete",
       users: { create: { userId } },
     },
-    include: { users: true },
+    include: { users: { include: { user: true } } },
   });
+  await notifyMemberJoined(league.id, league.name, member);
   res.status(201).json(serializeBigInt({ league, member }));
 });
 

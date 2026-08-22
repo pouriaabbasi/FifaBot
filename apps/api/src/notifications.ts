@@ -54,6 +54,25 @@ export async function notifyResultCleared(match: MatchWithMembers, leagueId: str
   await broadcastToLeague(leagueId, match.id, "result_confirmed", text);
 }
 
+export async function notifyMemberJoined(leagueId: string, leagueName: string, newMember: MemberWithUsers) {
+  const name = memberLabel(newMember);
+  const text = `👋 ${name} به لیگ «${leagueName}» پیوست`;
+  const joinedUserIds = new Set(memberUserIds(newMember).map((id) => id.toString()));
+  const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
+  const client = getBot();
+  const userIds = members.flatMap((m) => m.users.map((u) => u.userId)).filter((id) => !joinedUserIds.has(id.toString()));
+  await Promise.all(
+    userIds.map(async (userId) => {
+      if (!client) return;
+      try {
+        await client.sendMessage(userId.toString(), text);
+      } catch (err) {
+        console.error("telegram broadcast failed", { userId: userId.toString(), leagueId, type: "member_joined", err });
+      }
+    })
+  );
+}
+
 async function broadcastToLeague(leagueId: string, matchId: string, type: "next_match" | "result_confirmed", text: string) {
   const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
   const client = getBot();
