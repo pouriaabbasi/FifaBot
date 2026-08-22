@@ -5,12 +5,21 @@ import { authRouter } from "./routes/auth";
 import { leaguesRouter } from "./routes/leagues";
 import { matchesRouter, leagueMatchesRouter } from "./routes/matches";
 import { profileRouter } from "./routes/profile";
+import { prisma } from "./prisma";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ ok: true, database: true });
+  } catch (error) {
+    console.error("health check failed", error);
+    res.status(503).json({ ok: false, database: false });
+  }
+});
 
 app.use("/api/auth", authRouter);
 app.use("/api/leagues/:id/matches", leagueMatchesRouter);
