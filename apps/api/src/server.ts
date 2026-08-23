@@ -6,6 +6,7 @@ import { leaguesRouter } from "./routes/leagues";
 import { matchesRouter, leagueMatchesRouter } from "./routes/matches";
 import { profileRouter } from "./routes/profile";
 import { prisma } from "./prisma";
+import { backfillLoginCredentials } from "./backfillLoginCredentials";
 
 const app = express();
 app.use(cors());
@@ -28,4 +29,8 @@ app.use("/api/matches", matchesRouter);
 app.use("/api/profile", profileRouter);
 
 const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`api listening on :${port}`));
+backfillLoginCredentials()
+  .catch((err) => console.error("login credentials backfill failed", err))
+  .finally(() => {
+    app.listen(port, () => console.log(`api listening on :${port}`));
+  });
