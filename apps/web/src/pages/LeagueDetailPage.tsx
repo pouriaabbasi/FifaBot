@@ -240,11 +240,10 @@ export function LeagueDetailPage() {
         <MessageModal
           title={messageTarget === "all" ? `پیام به کل اعضای «${league?.name}»` : `پیام به ${messageTarget.label}`}
           onClose={() => setMessageTarget(null)}
-          onSend={(text) =>
-            messageTarget === "all"
-              ? api.messageLeague(leagueId, text)
-              : api.messageMember(leagueId, messageTarget.memberId, text)
-          }
+          onSend={async (text) => {
+            if (messageTarget === "all") await api.messageLeague(leagueId, text);
+            else await api.messageMember(leagueId, messageTarget.memberId, text);
+          }}
         />
       )}
     </div>
