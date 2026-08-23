@@ -1,7 +1,8 @@
 import TelegramBot from "node-telegram-bot-api";
 import { prisma } from "./prisma";
-import type { Match, LeagueMember, User, LeagueMemberUser } from "@prisma/client";
+import type { Match, LeagueMember, League, User, LeagueMemberUser } from "@prisma/client";
 import { displayName } from "./displayName";
+import { computeStandings } from "./standings";
 
 let bot: TelegramBot | null = null;
 
@@ -36,15 +37,15 @@ export async function notifyNextMatch(match: MatchWithMembers) {
 export async function notifyResultConfirmed(match: MatchWithMembers, leagueId: string) {
   const homeName = memberLabel(match.homeMember);
   const awayName = memberLabel(match.awayMember);
-  const text = `✅ نتیجه ثبت شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
-  await broadcastToLeague(leagueId, match.id, "result_confirmed", text);
+  const resultLine = `✅ نتیجه ثبت شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
+  await broadcastResultWithStandings(leagueId, match, resultLine);
 }
 
 export async function notifyResultUpdated(match: MatchWithMembers, leagueId: string) {
   const homeName = memberLabel(match.homeMember);
   const awayName = memberLabel(match.awayMember);
-  const text = `✏️ نتیجه ویرایش شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
-  await broadcastToLeague(leagueId, match.id, "result_confirmed", text);
+  const resultLine = `✏️ نتیجه ویرایش شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
+  await broadcastResultWithStandings(leagueId, match, resultLine);
 }
 
 export async function notifyResultCleared(match: MatchWithMembers, leagueId: string) {
@@ -89,6 +90,65 @@ export async function notifyMemberRemoved(leagueId: string, leagueName: string, 
       }
     })
   );
+}
+
+function standingsSummary(standings: Awaited<ReturnType<typeof computeStandings>>, memberId: string) {
+  const top3 = standings.slice(0, 3);
+  const lines = top3.map((s, i) => `${i + 1}. ${s.name} — ${s.points} امتیاز`);
+  const ownIndex = standings.findIndex((s) => s.memberId === memberId);
+  if (ownIndex >= 3) {
+    lines.push(`…`, `${ownIndex + 1}. ${standings[ownIndex].name} — ${standings[ownIndex].points} امتیاز`);
+  }
+  return `📊 جدول رده‌بندی:\n${lines.join("\n")}`;
+}
+
+async function broadcastResultWithStandings(leagueId: string, match: MatchWithMembers, resultLine: string) {
+  const standings = await computeStandings(match.stageId);
+  const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
+  const client = getBot();
+  await Promise.all(
+    members.map(async (m) => {
+      const text = `${resultLine}\n\n${standingsSummary(standings, m.id)}`;
+      for (const { userId } of m.users) {
+        if (!client) continue;
+        try {
+          await client.sendMessage(userId.toString(), text);
+        } catch (err) {
+          console.error("telegram broadcast failed", { userId: userId.toString(), matchId: match.id, type: "result_confirmed", err });
+        }
+      }
+    })
+  );
+}
+
+export async function notifyLeagueStarted(league: League, owner: User, members: MemberWithUsers[]) {
+  const ownerHandle = owner.username ? `@${owner.username}` : owner.telegramId.toString();
+  const ownerName = owner.nickname ?? owner.firstName;
+  const text = [
+    `🚀 لیگ «${league.name}» استارت شد!`,
+    `از امروز می‌تونید بازی‌هاتون رو انجام بدید.`,
+    `نتیجه هر بازی رو باید به ادمین لیگ (${ownerName} — ${ownerHandle}) بگید تا توی سیستم ثبت کنه.`,
+  ].join("\n");
+  const client = getBot();
+  const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
+  await Promise.all(
+    userIds.map(async (userId) => {
+      if (!client) return;
+      try {
+        await client.sendMessage(userId.toString(), text);
+      } catch (err) {
+        console.error("telegram broadcast failed", { userId: userId.toString(), leagueId: league.id, type: "league_started", err });
+      }
+    })
+  );
+}
+
+export async function notifyCustomMessage(leagueName: string, owner: User, targetUserId: bigint, text: string) {
+  const ownerName = owner.nickname ?? owner.firstName;
+  const message = `✉️ پیام از ادمین لیگ «${leagueName}» (${ownerName}):\n${text}`;
+  const client = getBot();
+  if (!client) throw new Error("BOT_TOKEN not configured");
+  await client.sendMessage(targetUserId.toString(), message);
 }
 
 async function broadcastToLeague(leagueId: string, matchId: string, type: "next_match" | "result_confirmed", text: string) {

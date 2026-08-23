@@ -92,6 +92,15 @@ export const api = {
   removeMember: (leagueId: string, memberId: string) =>
     request(`/api/leagues/${leagueId}/members/${memberId}`, { method: "DELETE" }),
 
+  messageMember: (leagueId: string, memberId: string, text: string) =>
+    request(`/api/leagues/${leagueId}/members/${memberId}/message`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+
+  messageLeague: (leagueId: string, text: string) =>
+    request(`/api/leagues/${leagueId}/message`, { method: "POST", body: JSON.stringify({ text }) }),
+
   joinLeague: (inviteCode: string) =>
     request<{ league: League; member: LeagueMember }>(`/api/leagues/join/${inviteCode}`, { method: "POST" }),
 

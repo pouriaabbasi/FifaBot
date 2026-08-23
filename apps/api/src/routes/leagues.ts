@@ -4,9 +4,10 @@ import { prisma } from "../prisma";
 import { AuthedRequest, requireAuth } from "../authMiddleware";
 import { serializeBigInt } from "../serialize";
 import { generateRoundRobin, generateHomeAndAway, generateKnockoutRound1 } from "../fixtures";
-import { notifyNextMatch, notifyMemberJoined, notifyMemberRemoved } from "../notifications";
+import { notifyNextMatch, notifyMemberJoined, notifyMemberRemoved, notifyLeagueStarted, notifyCustomMessage } from "../notifications";
 import { generateInviteCode } from "../inviteCode";
 import { displayName } from "../displayName";
+import { computeStandings } from "../standings";
 
 export const leaguesRouter = Router();
 leaguesRouter.use(requireAuth);
@@ -199,6 +200,48 @@ leaguesRouter.delete("/:id/members/:memberId", async (req: AuthedRequest, res) =
   res.status(204).send();
 });
 
+const messageSchema = z.object({ text: z.string().trim().min(1).max(1000) });
+
+leaguesRouter.post("/:id/members/:memberId/message", async (req: AuthedRequest, res) => {
+  const owner = await assertOwner(req.params.id, req.auth!.telegramId);
+  if (!owner) return res.status(404).json({ error: "league not found" });
+  if (owner === "forbidden") return res.status(403).json({ error: "owner only" });
+
+  const parsed = messageSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const member = await prisma.leagueMember.findUnique({ where: { id: req.params.memberId }, include: { users: true } });
+  if (!member || member.leagueId !== req.params.id) return res.status(404).json({ error: "member not found" });
+
+  const ownerUser = await prisma.user.findUnique({ where: { telegramId: owner.ownerId } });
+  if (!ownerUser) return res.status(500).json({ error: "owner profile not found" });
+
+  await Promise.all(
+    member.users.map((u) => notifyCustomMessage(owner.name, ownerUser, u.userId, parsed.data.text))
+  );
+
+  res.status(204).send();
+});
+
+leaguesRouter.post("/:id/message", async (req: AuthedRequest, res) => {
+  const owner = await assertOwner(req.params.id, req.auth!.telegramId);
+  if (!owner) return res.status(404).json({ error: "league not found" });
+  if (owner === "forbidden") return res.status(403).json({ error: "owner only" });
+
+  const parsed = messageSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const ownerUser = await prisma.user.findUnique({ where: { telegramId: owner.ownerId } });
+  if (!ownerUser) return res.status(500).json({ error: "owner profile not found" });
+
+  const members = await prisma.leagueMember.findMany({ where: { leagueId: req.params.id }, include: { users: true } });
+  const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
+
+  await Promise.all(userIds.map((userId) => notifyCustomMessage(owner.name, ownerUser, userId, parsed.data.text)));
+
+  res.status(204).send();
+});
+
 leaguesRouter.post("/:id/generate-fixture", async (req: AuthedRequest, res) => {
   const owner = await assertOwner(req.params.id, req.auth!.telegramId);
   if (!owner) return res.status(404).json({ error: "league not found" });
@@ -244,6 +287,13 @@ leaguesRouter.post("/:id/generate-fixture", async (req: AuthedRequest, res) => {
     },
   });
   await Promise.all(created.map((m) => notifyNextMatch(m)));
+
+  const ownerUser = await prisma.user.findUnique({ where: { telegramId: owner.ownerId } });
+  const membersWithUsers = await prisma.leagueMember.findMany({
+    where: { leagueId: req.params.id },
+    include: { users: { include: { user: true } } },
+  });
+  if (ownerUser) await notifyLeagueStarted(owner, ownerUser, membersWithUsers);
 
   res.status(201).json(serializeBigInt(created));
 });
@@ -309,37 +359,3 @@ leaguesRouter.get("/:id/standings", async (req: AuthedRequest, res) => {
   res.json(serializeBigInt(standings));
 });
 
-export async function computeStandings(stageId: string) {
-  const members = await prisma.leagueMember.findMany({
-    where: { OR: [{ homeMatches: { some: { stageId } } }, { awayMatches: { some: { stageId } } }] },
-    include: { users: { include: { user: true } } },
-  });
-  const matches = await prisma.match.findMany({ where: { stageId, status: "played" } });
-
-  const table = members.map((m) => {
-    let played = 0, won = 0, drawn = 0, lost = 0, gf = 0, ga = 0;
-    for (const match of matches) {
-      const isHome = match.homeMemberId === m.id;
-      const isAway = match.awayMemberId === m.id;
-      if (!isHome && !isAway) continue;
-      played++;
-      const scored = isHome ? match.homeScore! : match.awayScore!;
-      const conceded = isHome ? match.awayScore! : match.homeScore!;
-      gf += scored;
-      ga += conceded;
-      if (scored > conceded) won++;
-      else if (scored === conceded) drawn++;
-      else lost++;
-    }
-    return {
-      memberId: m.id,
-      memberUserIds: m.users.map((u) => u.userId.toString()),
-      name: displayName(m, m.users.map((u) => u.user)),
-      played, won, drawn, lost, gf, ga,
-      goalDiff: gf - ga,
-      points: won * 3 + drawn,
-    };
-  });
-
-  return table.sort((a, b) => b.points - a.points || b.goalDiff - a.goalDiff || b.gf - a.gf);
-}

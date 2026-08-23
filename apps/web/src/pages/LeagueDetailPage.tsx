@@ -7,6 +7,7 @@ import { api } from "../api";
 import type { League } from "../api";
 import { getCurrentTelegramId, shareInviteLink } from "../telegram";
 import { displayName } from "../displayName";
+import { MessageModal } from "../components/MessageModal";
 
 export function LeagueDetailPage() {
   const { leagueId } = useParams<{ leagueId: string }>();
@@ -17,6 +18,7 @@ export function LeagueDetailPage() {
   const [startError, setStartError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [pairingId, setPairingId] = useState<string | null>(null);
+  const [messageTarget, setMessageTarget] = useState<{ memberId: string; label: string } | "all" | null>(null);
 
   async function reload() {
     if (!leagueId) return;
@@ -88,6 +90,15 @@ export function LeagueDetailPage() {
             <div className="screen-title">{league.name}</div>
             <div className="screen-sub">{league.members.length} {isTeamLeague ? "تیم" : "بازیکن"}</div>
           </div>
+          {isOwner && (
+            <button
+              className="btn-gold"
+              style={{ width: "auto", padding: "6px 14px", fontSize: "0.75rem" }}
+              onClick={() => setMessageTarget("all")}
+            >
+              پیام به همه
+            </button>
+          )}
         </div>
       )}
 
@@ -164,7 +175,7 @@ export function LeagueDetailPage() {
         <TeamNameCard member={myMembership} onSave={(name) => handleSetTeamName(myMembership.id, name)} />
       )}
 
-      {league && league.status === "draft" && (
+      {league && (league.status === "draft" || isOwner) && (
         <div className="card">
           <div className="field-label" style={{ marginTop: 0 }}>
             {isTeamLeague ? "تیم‌های کامل" : "بازیکنان"} ({league.members.filter((m) => m.status === "complete").length})
@@ -177,20 +188,32 @@ export function LeagueDetailPage() {
                   <div className="avatar">{displayName(m).charAt(0)}</div>
                   <span className="pname-sm">{displayName(m)}</span>
                 </div>
-                {m.role === "owner" ? (
-                  <span className="pill done">ادمین</span>
-                ) : (
-                  isOwner && (
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {isOwner && (
                     <button
                       className="btn-gold"
-                      style={{ width: "auto", padding: "4px 12px", fontSize: "0.72rem", background: "none", border: "1px solid var(--danger)", color: "var(--danger)", boxShadow: "none" }}
-                      disabled={removingId === m.id}
-                      onClick={() => handleRemoveMember(m.id)}
+                      style={{ width: "auto", padding: "4px 12px", fontSize: "0.72rem", background: "none", border: "1.5px solid rgba(232,183,63,0.4)", color: "var(--gold)", boxShadow: "none" }}
+                      onClick={() => setMessageTarget({ memberId: m.id, label: displayName(m) })}
                     >
-                      {removingId === m.id ? "…" : "حذف"}
+                      پیام
                     </button>
-                  )
-                )}
+                  )}
+                  {m.role === "owner" ? (
+                    <span className="pill done">ادمین</span>
+                  ) : (
+                    isOwner &&
+                    league.status === "draft" && (
+                      <button
+                        className="btn-gold"
+                        style={{ width: "auto", padding: "4px 12px", fontSize: "0.72rem", background: "none", border: "1px solid var(--danger)", color: "var(--danger)", boxShadow: "none" }}
+                        disabled={removingId === m.id}
+                        onClick={() => handleRemoveMember(m.id)}
+                      >
+                        {removingId === m.id ? "…" : "حذف"}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
             ))}
         </div>
@@ -212,6 +235,18 @@ export function LeagueDetailPage() {
       {tab === "standings" && <StandingsPage key={leagueId} />}
       {tab === "matches" && <MatchesPage key={leagueId} />}
       {tab === "admin" && isOwner && <AdminMatchesPage key={leagueId} />}
+
+      {messageTarget && leagueId && (
+        <MessageModal
+          title={messageTarget === "all" ? `پیام به کل اعضای «${league?.name}»` : `پیام به ${messageTarget.label}`}
+          onClose={() => setMessageTarget(null)}
+          onSend={(text) =>
+            messageTarget === "all"
+              ? api.messageLeague(leagueId, text)
+              : api.messageMember(leagueId, messageTarget.memberId, text)
+          }
+        />
+      )}
     </div>
   );
 }
