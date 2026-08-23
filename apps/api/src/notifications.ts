@@ -73,6 +73,24 @@ export async function notifyMemberJoined(leagueId: string, leagueName: string, n
   );
 }
 
+export async function notifyMemberRemoved(leagueId: string, leagueName: string, removedMember: MemberWithUsers) {
+  const name = memberLabel(removedMember);
+  const text = `🚫 ${name} از لیگ «${leagueName}» حذف شد`;
+  const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
+  const client = getBot();
+  const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
+  await Promise.all(
+    userIds.map(async (userId) => {
+      if (!client) return;
+      try {
+        await client.sendMessage(userId.toString(), text);
+      } catch (err) {
+        console.error("telegram broadcast failed", { userId: userId.toString(), leagueId, type: "member_removed", err });
+      }
+    })
+  );
+}
+
 async function broadcastToLeague(leagueId: string, matchId: string, type: "next_match" | "result_confirmed", text: string) {
   const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
   const client = getBot();
