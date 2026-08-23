@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
-import { getTelegramWebApp, initTelegramWebApp } from "./telegram";
+import { getTelegramWebApp, initTelegramWebApp, waitForTelegramWebApp } from "./telegram";
 import { api, loadStoredToken, setAuthToken } from "./api";
 import { BottomNav } from "./components/BottomNav";
 import { LoginForm } from "./components/LoginForm";
@@ -22,25 +22,25 @@ function App() {
 
   useEffect(() => {
     initTelegramWebApp();
-    const webApp = getTelegramWebApp();
     let cancelled = false;
-
-    // Not inside Telegram at all — this is known synchronously (no script
-    // ever set window.Telegram), so jump to the login form immediately
-    // instead of waiting on any timer.
-    if (!loadStoredToken() && !webApp?.initData) {
-      setAuthState("login");
-      return;
-    }
-
-    // Login can take a couple seconds even on a warm server (network + a DB
-    // upsert). Only call out a slow server after that's clearly exceeded.
-    const wakingTimer = setTimeout(() => {
-      if (!cancelled) setAuthState("waking");
-    }, 8000);
+    let wakingTimer: ReturnType<typeof setTimeout> | undefined;
 
     async function bootstrap() {
-      if (!loadStoredToken()) {
+      const hasToken = !!loadStoredToken();
+      const webApp = hasToken ? getTelegramWebApp() : await waitForTelegramWebApp();
+
+      if (!hasToken && !webApp?.initData) {
+        if (!cancelled) setAuthState("login");
+        return;
+      }
+
+      // Login can take a couple seconds even on a warm server (network + a DB
+      // upsert). Only call out a slow server after that's clearly exceeded.
+      wakingTimer = setTimeout(() => {
+        if (!cancelled) setAuthState("waking");
+      }, 8000);
+
+      if (!hasToken) {
         const { token } = await api.loginWithTelegram(webApp!.initData);
         if (cancelled) return;
         setAuthToken(token);

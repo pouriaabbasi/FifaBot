@@ -47,6 +47,28 @@ export function getTelegramWebApp(): TelegramWebApp | null {
   return window.Telegram?.WebApp ?? null;
 }
 
+// The Telegram bridge script loads with `defer` so it never blocks page
+// render. That means window.Telegram can still be unset for a brief moment
+// after mount even when we genuinely are inside Telegram. Give it a short,
+// fixed window to show up before treating the app as opened outside Telegram.
+const TELEGRAM_SCRIPT_GRACE_MS = 300;
+
+export function waitForTelegramWebApp(): Promise<TelegramWebApp | null> {
+  const existing = getTelegramWebApp();
+  if (existing) return Promise.resolve(existing);
+
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const interval = setInterval(() => {
+      const webApp = getTelegramWebApp();
+      if (webApp || Date.now() - started >= TELEGRAM_SCRIPT_GRACE_MS) {
+        clearInterval(interval);
+        resolve(webApp);
+      }
+    }, 20);
+  });
+}
+
 export function initTelegramWebApp() {
   const webApp = getTelegramWebApp();
   if (!webApp) return;
