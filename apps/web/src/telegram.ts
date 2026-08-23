@@ -47,26 +47,50 @@ export function getTelegramWebApp(): TelegramWebApp | null {
   return window.Telegram?.WebApp ?? null;
 }
 
-// The Telegram bridge script loads with `defer` so it never blocks page
-// render. That means window.Telegram can still be unset for a brief moment
-// after mount even when we genuinely are inside Telegram. Give it a short,
-// fixed window to show up before treating the app as opened outside Telegram.
-const TELEGRAM_SCRIPT_GRACE_MS = 300;
+// The Telegram bridge script is not in index.html — a static <script> tag
+// there (even with defer) still makes the browser wait on that download
+// before DOMContentLoaded/module execution, which stalls the login-form
+// fallback if telegram.org is slow or blocked. We load it ourselves here and
+// give it a short, fixed window to finish before deciding we're not inside
+// Telegram at all.
+const TELEGRAM_SCRIPT_URL = "https://telegram.org/js/telegram-web-app.js";
+const TELEGRAM_SCRIPT_TIMEOUT_MS = 300;
+
+let telegramScriptPromise: Promise<TelegramWebApp | null> | null = null;
+
+function loadTelegramScript(): Promise<TelegramWebApp | null> {
+  if (telegramScriptPromise) return telegramScriptPromise;
+
+  telegramScriptPromise = new Promise((resolve) => {
+    const existing = getTelegramWebApp();
+    if (existing) {
+      resolve(existing);
+      return;
+    }
+
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve(getTelegramWebApp());
+    };
+
+    const script = document.createElement("script");
+    script.src = TELEGRAM_SCRIPT_URL;
+    script.onload = finish;
+    script.onerror = finish;
+    document.head.appendChild(script);
+
+    setTimeout(finish, TELEGRAM_SCRIPT_TIMEOUT_MS);
+  });
+
+  return telegramScriptPromise;
+}
 
 export function waitForTelegramWebApp(): Promise<TelegramWebApp | null> {
   const existing = getTelegramWebApp();
   if (existing) return Promise.resolve(existing);
-
-  return new Promise((resolve) => {
-    const started = Date.now();
-    const interval = setInterval(() => {
-      const webApp = getTelegramWebApp();
-      if (webApp || Date.now() - started >= TELEGRAM_SCRIPT_GRACE_MS) {
-        clearInterval(interval);
-        resolve(webApp);
-      }
-    }, 20);
-  });
+  return loadTelegramScript();
 }
 
 export function initTelegramWebApp() {

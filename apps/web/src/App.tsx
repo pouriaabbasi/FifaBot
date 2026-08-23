@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
-import { getTelegramWebApp, initTelegramWebApp, waitForTelegramWebApp } from "./telegram";
+import { initTelegramWebApp, waitForTelegramWebApp } from "./telegram";
 import { api, loadStoredToken, setAuthToken } from "./api";
 import { BottomNav } from "./components/BottomNav";
 import { LoginForm } from "./components/LoginForm";
@@ -21,13 +21,13 @@ function App() {
   const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
-    initTelegramWebApp();
     let cancelled = false;
     let wakingTimer: ReturnType<typeof setTimeout> | undefined;
 
     async function bootstrap() {
       const hasToken = !!loadStoredToken();
-      const webApp = hasToken ? getTelegramWebApp() : await waitForTelegramWebApp();
+      const webApp = await waitForTelegramWebApp();
+      initTelegramWebApp();
 
       if (!hasToken && !webApp?.initData) {
         if (!cancelled) setAuthState("login");
