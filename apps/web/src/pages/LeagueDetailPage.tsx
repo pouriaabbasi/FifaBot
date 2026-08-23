@@ -19,6 +19,7 @@ export function LeagueDetailPage() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [pairingId, setPairingId] = useState<string | null>(null);
   const [messageTarget, setMessageTarget] = useState<{ memberId: string; label: string } | "all" | null>(null);
+  const [membersOpen, setMembersOpen] = useState(false);
 
   async function reload() {
     if (!leagueId) return;
@@ -177,45 +178,66 @@ export function LeagueDetailPage() {
 
       {league && (league.status === "draft" || isOwner) && (
         <div className="card">
-          <div className="field-label" style={{ marginTop: 0 }}>
-            {isTeamLeague ? "تیم‌های کامل" : "بازیکنان"} ({league.members.filter((m) => m.status === "complete").length})
-          </div>
-          {league.members
-            .filter((m) => m.status === "complete")
-            .map((m) => (
-              <div key={m.id} className="match-row" style={{ padding: "8px 0" }}>
-                <div className="side">
-                  <div className="avatar">{displayName(m).charAt(0)}</div>
-                  <span className="pname-sm">{displayName(m)}</span>
-                </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  {isOwner && (
-                    <button
-                      className="btn-gold"
-                      style={{ width: "auto", padding: "4px 12px", fontSize: "0.72rem", background: "none", border: "1.5px solid rgba(232,183,63,0.4)", color: "var(--gold)", boxShadow: "none" }}
-                      onClick={() => setMessageTarget({ memberId: m.id, label: displayName(m) })}
-                    >
-                      پیام
-                    </button>
-                  )}
-                  {m.role === "owner" ? (
-                    <span className="pill done">ادمین</span>
-                  ) : (
-                    isOwner &&
-                    league.status === "draft" && (
-                      <button
-                        className="btn-gold"
-                        style={{ width: "auto", padding: "4px 12px", fontSize: "0.72rem", background: "none", border: "1px solid var(--danger)", color: "var(--danger)", boxShadow: "none" }}
-                        disabled={removingId === m.id}
-                        onClick={() => handleRemoveMember(m.id)}
-                      >
-                        {removingId === m.id ? "…" : "حذف"}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-            ))}
+          <button
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              color: "inherit",
+              font: "inherit",
+            }}
+            onClick={() => setMembersOpen((o) => !o)}
+          >
+            <span className="field-label" style={{ margin: 0 }}>
+              {isTeamLeague ? "تیم‌های کامل" : "بازیکنان"} ({league.members.filter((m) => m.status === "complete").length})
+            </span>
+            <span style={{ color: "var(--gold)", fontSize: "0.8rem" }}>{membersOpen ? "▲" : "▼"}</span>
+          </button>
+          {membersOpen && (
+            <div style={{ marginTop: 10 }}>
+              {league.members
+                .filter((m) => m.status === "complete")
+                .map((m) => (
+                  <div key={m.id} className="match-row" style={{ padding: "8px 0" }}>
+                    <div className="side">
+                      <div className="avatar">{displayName(m).charAt(0)}</div>
+                      <span className="pname-sm">{displayName(m)}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {isOwner && (
+                        <button
+                          className="btn-gold"
+                          style={{ width: "auto", padding: "4px 12px", fontSize: "0.72rem", background: "none", border: "1.5px solid rgba(232,183,63,0.4)", color: "var(--gold)", boxShadow: "none" }}
+                          onClick={() => setMessageTarget({ memberId: m.id, label: displayName(m) })}
+                        >
+                          پیام
+                        </button>
+                      )}
+                      {m.role === "owner" ? (
+                        <span className="pill done">ادمین</span>
+                      ) : (
+                        isOwner &&
+                        league.status === "draft" && (
+                          <button
+                            className="btn-gold"
+                            style={{ width: "auto", padding: "4px 12px", fontSize: "0.72rem", background: "none", border: "1px solid var(--danger)", color: "var(--danger)", boxShadow: "none" }}
+                            disabled={removingId === m.id}
+                            onClick={() => handleRemoveMember(m.id)}
+                          >
+                            {removingId === m.id ? "…" : "حذف"}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
 
