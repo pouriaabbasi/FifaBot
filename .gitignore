@@ -3,4 +3,7 @@ dist/
 .env
 .env.local
 apps/api/prisma/dev.db
+apps/api/prisma/data/
+apps/api/prisma/migrations.postgres.bak/
+apps/api/scripts/migrate-pg-source/generated/
 *.log

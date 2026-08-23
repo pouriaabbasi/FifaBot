@@ -22,4 +22,4 @@ COPY apps/api/package.json apps/api/package.json
 
 WORKDIR /app/apps/api
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+CMD ["node", "dist/server.js"]

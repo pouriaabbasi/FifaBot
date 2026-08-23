@@ -1,19 +1,50 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "./generated"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("SOURCE_DATABASE_URL")
 }
 
-// LeagueStatus: draft | active | finished
-// StageFormat: round_robin | knockout
-// StageStatus: pending | active | done
-// MemberRole: owner | admin | player
-// TeamStatus: incomplete | complete
-// MatchStatus: pending | played
-// NotificationType: result_confirmed
+enum LeagueStatus {
+  draft
+  active
+  finished
+}
+
+enum StageFormat {
+  round_robin
+  knockout
+}
+
+enum StageStatus {
+  pending
+  active
+  done
+}
+
+enum MemberRole {
+  owner
+  admin
+  player
+}
+
+enum TeamStatus {
+  incomplete
+  complete
+}
+
+enum MatchStatus {
+  pending
+  played
+}
+
+enum NotificationType {
+  next_match
+  result_confirmed
+}
 
 model User {
   telegramId    BigInt          @id
@@ -33,7 +64,7 @@ model League {
   name        String
   ownerId     BigInt
   owner       User         @relation("LeagueOwner", fields: [ownerId], references: [telegramId])
-  status      String       @default("draft")
+  status      LeagueStatus @default(draft)
   isTwoStage  Boolean      @default(false)
   teamSize    Int          @default(1)
   inviteCode  String       @unique
@@ -48,9 +79,9 @@ model LeagueStage {
   leagueId    String
   league      League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   order       Int
-  format      String
+  format      StageFormat
   qualifyTopN Int?
-  status      String      @default("pending")
+  status      StageStatus @default(pending)
 
   matches     Match[]
 
@@ -62,8 +93,8 @@ model LeagueMember {
   leagueId   String
   league     League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   nickname   String?
-  role       String     @default("player")
-  status     String     @default("complete")
+  role       MemberRole @default(player)
+  status     TeamStatus @default(complete)
   joinedAt   DateTime   @default(now())
 
   users       LeagueMemberUser[]
@@ -90,7 +121,7 @@ model Match {
   awayMemberId String
   awayMember   LeagueMember @relation("AwayMember", fields: [awayMemberId], references: [id])
   round        Int?
-  status       String       @default("pending")
+  status       MatchStatus  @default(pending)
   homeScore    Int?
   awayScore    Int?
   playedAt     DateTime?
@@ -101,15 +132,15 @@ model Match {
 }
 
 model Notification {
-  id        String    @id @default(uuid())
+  id        String           @id @default(uuid())
   userId    BigInt
-  user      User      @relation(fields: [userId], references: [telegramId])
-  type      String
+  user      User             @relation(fields: [userId], references: [telegramId])
+  type      NotificationType
   matchId   String
-  match     Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  delivered Boolean   @default(false)
+  match     Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  delivered Boolean          @default(false)
   error     String?
-  sentAt    DateTime  @default(now())
+  sentAt    DateTime         @default(now())
 
   @@unique([userId, matchId, type])
 }
