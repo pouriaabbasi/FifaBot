@@ -15,6 +15,15 @@ export function loadStoredToken() {
 function clearAuthToken() {
   authToken = null;
   sessionStorage.removeItem("auth_token");
+  sessionStorage.removeItem("current_user_id");
+}
+
+export function setCurrentUserId(telegramId: string) {
+  sessionStorage.setItem("current_user_id", telegramId);
+}
+
+export function getStoredCurrentUserId(): string | null {
+  return sessionStorage.getItem("current_user_id");
 }
 
 const REQUEST_TIMEOUT_MS = 20000;
@@ -72,13 +81,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   loginWithTelegram: (initData: string) =>
-    request<{ token: string; user: unknown }>("/api/auth/telegram", {
+    request<{ token: string; user: { telegramId: string } }>("/api/auth/telegram", {
       method: "POST",
       body: JSON.stringify({ initData }),
     }),
 
   loginWithPassword: (username: string, password: string) =>
-    request<{ token: string; user: unknown }>("/api/auth/login", {
+    request<{ token: string; user: { telegramId: string } }>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),

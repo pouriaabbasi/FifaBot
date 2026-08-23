@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 
 interface LoginFormProps {
-  onSuccess: (token: string) => void;
+  onSuccess: (token: string, telegramId: string) => void;
 }
 
 export function LoginForm({ onSuccess }: LoginFormProps) {
@@ -17,8 +17,8 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     setLoading(true);
     setError(null);
     try {
-      const { token } = await api.loginWithPassword(username.trim(), password);
-      onSuccess(token);
+      const { token, user } = await api.loginWithPassword(username.trim(), password);
+      onSuccess(token, user.telegramId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "ورود ناموفق بود");
     } finally {

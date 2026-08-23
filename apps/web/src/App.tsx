@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import { initTelegramWebApp, waitForTelegramWebApp } from "./telegram";
-import { api, loadStoredToken, setAuthToken } from "./api";
+import { api, loadStoredToken, setAuthToken, setCurrentUserId } from "./api";
 import { BottomNav } from "./components/BottomNav";
 import { LoginForm } from "./components/LoginForm";
 import { GlobalLoadingBar } from "./components/GlobalLoadingBar";
@@ -41,9 +41,10 @@ function App() {
       }, 8000);
 
       if (!hasToken) {
-        const { token } = await api.loginWithTelegram(webApp!.initData);
+        const { token, user } = await api.loginWithTelegram(webApp!.initData);
         if (cancelled) return;
         setAuthToken(token);
+        setCurrentUserId(user.telegramId);
       }
 
       const inviteCode = webApp?.initDataUnsafe?.start_param;
@@ -92,8 +93,9 @@ function App() {
   if (authState === "login") {
     return (
       <LoginForm
-        onSuccess={(token) => {
+        onSuccess={(token, telegramId) => {
           setAuthToken(token);
+          setCurrentUserId(telegramId);
           setAuthState("ready");
         }}
       />

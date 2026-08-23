@@ -1,3 +1,5 @@
+import { getStoredCurrentUserId } from "./api";
+
 interface TelegramWebApp {
   initData: string;
   initDataUnsafe: { start_param?: string; user?: { id: number } };
@@ -22,6 +24,8 @@ export function buildInviteLink(inviteCode: string) {
 }
 
 export function getCurrentTelegramId(): string | null {
+  const stored = getStoredCurrentUserId();
+  if (stored) return stored;
   const id = getTelegramWebApp()?.initDataUnsafe?.user?.id;
   return id != null ? String(id) : null;
 }
