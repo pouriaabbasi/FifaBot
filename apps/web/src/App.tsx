@@ -25,6 +25,14 @@ function App() {
     const webApp = getTelegramWebApp();
     let cancelled = false;
 
+    // Not inside Telegram at all — this is known synchronously (no script
+    // ever set window.Telegram), so jump to the login form immediately
+    // instead of waiting on any timer.
+    if (!loadStoredToken() && !webApp?.initData) {
+      setAuthState("login");
+      return;
+    }
+
     // Login can take a couple seconds even on a warm server (network + a DB
     // upsert). Only call out a slow server after that's clearly exceeded.
     const wakingTimer = setTimeout(() => {
@@ -33,11 +41,7 @@ function App() {
 
     async function bootstrap() {
       if (!loadStoredToken()) {
-        if (!webApp?.initData) {
-          if (!cancelled) setAuthState("login");
-          return;
-        }
-        const { token } = await api.loginWithTelegram(webApp.initData);
+        const { token } = await api.loginWithTelegram(webApp!.initData);
         if (cancelled) return;
         setAuthToken(token);
       }
