@@ -23,6 +23,10 @@ model User {
   photoUrl      String?
   createdAt     DateTime        @default(now())
 
+  loginUsername String?         @unique
+  passwordHash  String?
+  credentialsSentAt DateTime?
+
   ownedLeagues  League[]        @relation("LeagueOwner")
   memberships   LeagueMemberUser[]
   notifications Notification[]

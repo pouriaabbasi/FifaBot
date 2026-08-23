@@ -77,6 +77,15 @@ export const api = {
       body: JSON.stringify({ initData }),
     }),
 
+  loginWithPassword: (username: string, password: string) =>
+    request<{ token: string; user: unknown }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+
+  updateCredentials: (payload: { currentPassword: string; newUsername?: string; newPassword?: string }) =>
+    request<CurrentUser>("/api/profile/credentials", { method: "PATCH", body: JSON.stringify(payload) }),
+
   getLeagues: () => request<League[]>("/api/leagues"),
 
   createLeague: (payload: {
@@ -206,6 +215,7 @@ export interface CurrentUser {
   username: string | null;
   nickname: string | null;
   photoUrl: string | null;
+  loginUsername: string | null;
 }
 
 export interface Match {

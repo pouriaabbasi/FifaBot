@@ -3,6 +3,7 @@ import { api } from "../api";
 import type { ProfileStats, CurrentUser } from "../api";
 import { WinLossDonut } from "../components/WinLossDonut";
 import { NicknameCard } from "../components/NicknameCard";
+import { CredentialsCard } from "../components/CredentialsCard";
 
 export function ProfilePage() {
   const [stats, setStats] = useState<ProfileStats | null>(null);
@@ -27,6 +28,7 @@ export function ProfilePage() {
       </div>
 
       {user && <NicknameCard user={user} onUpdated={setUser} />}
+      {user && <CredentialsCard user={user} onUpdated={setUser} />}
 
       {error && <div className="empty-state">{error}</div>}
       {!error && !stats && <div className="loading-state">در حال بارگذاری…</div>}

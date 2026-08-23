@@ -117,6 +117,25 @@ async function broadcastResultWithStandings(leagueId: string, match: MatchWithMe
   });
 }
 
+export async function notifyLoginCredentials(telegramId: bigint, username: string, password: string) {
+  const client = getBot();
+  if (!client) return;
+  const text = [
+    `🔐 برای ورود مستقیم به اپ (خارج از تلگرام) از این آدرس و اطلاعات استفاده کن:`,
+    `https://fifabot.darkube.ir`,
+    ``,
+    `نام کاربری: ${username}`,
+    `رمز عبور: ${password}`,
+    ``,
+    `می‌تونی این‌ها رو از داخل پروفایل توی اپ عوض کنی.`,
+  ].join("\n");
+  try {
+    await client.sendMessage(telegramId.toString(), text);
+  } catch (err) {
+    console.error("telegram credentials send failed", { telegramId: telegramId.toString(), err });
+  }
+}
+
 export async function notifyLeagueStarted(league: League, owner: User, members: MemberWithUsers[]) {
   const ownerHandle = owner.username ? `@${owner.username}` : owner.telegramId.toString();
   const ownerName = owner.nickname ?? owner.firstName;

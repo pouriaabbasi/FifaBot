@@ -3,12 +3,22 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { AuthedRequest, requireAuth } from "../authMiddleware";
 import { serializeBigInt } from "../serialize";
+import { hashPassword, verifyPassword } from "../password";
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
 
+const meSelect = {
+  telegramId: true,
+  firstName: true,
+  username: true,
+  nickname: true,
+  photoUrl: true,
+  loginUsername: true,
+} as const;
+
 profileRouter.get("/me", async (req: AuthedRequest, res) => {
-  const user = await prisma.user.findUnique({ where: { telegramId: BigInt(req.auth!.telegramId) } });
+  const user = await prisma.user.findUnique({ where: { telegramId: BigInt(req.auth!.telegramId) }, select: meSelect });
   if (!user) return res.status(404).json({ error: "user not found" });
   res.json(serializeBigInt(user));
 });
@@ -26,6 +36,42 @@ profileRouter.patch("/nickname", async (req: AuthedRequest, res) => {
     data: { nickname },
   });
   res.json(serializeBigInt(user));
+});
+
+const credentialsSchema = z.object({
+  currentPassword: z.string().min(1),
+  newUsername: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/).optional(),
+  newPassword: z.string().min(6).max(72).optional(),
+});
+
+profileRouter.patch("/credentials", async (req: AuthedRequest, res) => {
+  const parsed = credentialsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { currentPassword, newUsername, newPassword } = parsed.data;
+  if (!newUsername && !newPassword) return res.status(400).json({ error: "nothing to update" });
+
+  const user = await prisma.user.findUnique({ where: { telegramId: BigInt(req.auth!.telegramId) } });
+  if (!user?.passwordHash || !verifyPassword(currentPassword, user.passwordHash)) {
+    return res.status(403).json({ error: "رمز عبور فعلی اشتباه است" });
+  }
+
+  if (newUsername) {
+    const existing = await prisma.user.findUnique({ where: { loginUsername: newUsername } });
+    if (existing && existing.telegramId !== user.telegramId) {
+      return res.status(409).json({ error: "این نام کاربری قبلاً استفاده شده" });
+    }
+  }
+
+  const updated = await prisma.user.update({
+    where: { telegramId: user.telegramId },
+    data: {
+      ...(newUsername ? { loginUsername: newUsername } : {}),
+      ...(newPassword ? { passwordHash: hashPassword(newPassword) } : {}),
+    },
+    select: meSelect,
+  });
+
+  res.json(serializeBigInt(updated));
 });
 
 profileRouter.get("/stats", async (req: AuthedRequest, res) => {

@@ -4,6 +4,7 @@ import "./App.css";
 import { getTelegramWebApp, initTelegramWebApp } from "./telegram";
 import { api, loadStoredToken, setAuthToken } from "./api";
 import { BottomNav } from "./components/BottomNav";
+import { LoginForm } from "./components/LoginForm";
 import { GlobalLoadingBar } from "./components/GlobalLoadingBar";
 import { LeaguesPage } from "./pages/LeaguesPage";
 import { NewLeaguePage } from "./pages/NewLeaguePage";
@@ -11,7 +12,7 @@ import { LeagueDetailPage } from "./pages/LeagueDetailPage";
 import { ResultEntryPage } from "./pages/ResultEntryPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
-type AuthState = "loading" | "waking" | "ready" | "error";
+type AuthState = "loading" | "waking" | "ready" | "error" | "login";
 
 function App() {
   const [authState, setAuthState] = useState<AuthState>("loading");
@@ -33,7 +34,7 @@ function App() {
     async function bootstrap() {
       if (!loadStoredToken()) {
         if (!webApp?.initData) {
-          if (!cancelled) setAuthState("error");
+          if (!cancelled) setAuthState("login");
           return;
         }
         const { token } = await api.loginWithTelegram(webApp.initData);
@@ -82,6 +83,16 @@ function App() {
           تلاش دوباره
         </button>
       </div>
+    );
+  }
+  if (authState === "login") {
+    return (
+      <LoginForm
+        onSuccess={(token) => {
+          setAuthToken(token);
+          setAuthState("ready");
+        }}
+      />
     );
   }
 
