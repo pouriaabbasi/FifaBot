@@ -4,6 +4,19 @@ import type { Match, LeagueMember, League, User, LeagueMemberUser } from "@prism
 import { displayName } from "./displayName";
 import { computeStandings } from "./standings";
 
+const NOTIFY_CONCURRENCY = 5;
+
+async function runLimited<T>(items: T[], worker: (item: T) => Promise<void>) {
+  let cursor = 0;
+  async function next(): Promise<void> {
+    const index = cursor++;
+    if (index >= items.length) return;
+    await worker(items[index]);
+    await next();
+  }
+  await Promise.all(Array.from({ length: Math.min(NOTIFY_CONCURRENCY, items.length) }, next));
+}
+
 let bot: TelegramBot | null = null;
 
 export function getBot() {
@@ -22,16 +35,6 @@ function memberLabel(member: MemberWithUsers) {
 
 function memberUserIds(member: MemberWithUsers) {
   return member.users.map((u) => u.userId);
-}
-
-export async function notifyNextMatch(match: MatchWithMembers) {
-  const homeName = memberLabel(match.homeMember);
-  const awayName = memberLabel(match.awayMember);
-  const text = `⚽ بازی جدید آماده است: ${homeName} مقابل ${awayName}`;
-  await Promise.all([
-    ...memberUserIds(match.homeMember).map((userId) => sendOnce(userId, match.id, "next_match", text)),
-    ...memberUserIds(match.awayMember).map((userId) => sendOnce(userId, match.id, "next_match", text)),
-  ]);
 }
 
 export async function notifyResultConfirmed(match: MatchWithMembers, leagueId: string) {
@@ -62,16 +65,14 @@ export async function notifyMemberJoined(leagueId: string, leagueName: string, n
   const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
   const client = getBot();
   const userIds = members.flatMap((m) => m.users.map((u) => u.userId)).filter((id) => !joinedUserIds.has(id.toString()));
-  await Promise.all(
-    userIds.map(async (userId) => {
-      if (!client) return;
-      try {
-        await client.sendMessage(userId.toString(), text);
-      } catch (err) {
-        console.error("telegram broadcast failed", { userId: userId.toString(), leagueId, type: "member_joined", err });
-      }
-    })
-  );
+  await runLimited(userIds, async (userId) => {
+    if (!client) return;
+    try {
+      await client.sendMessage(userId.toString(), text);
+    } catch (err) {
+      console.error("telegram broadcast failed", { userId: userId.toString(), leagueId, type: "member_joined", err });
+    }
+  });
 }
 
 export async function notifyMemberRemoved(leagueId: string, leagueName: string, removedMember: MemberWithUsers) {
@@ -80,16 +81,14 @@ export async function notifyMemberRemoved(leagueId: string, leagueName: string, 
   const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
   const client = getBot();
   const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
-  await Promise.all(
-    userIds.map(async (userId) => {
-      if (!client) return;
-      try {
-        await client.sendMessage(userId.toString(), text);
-      } catch (err) {
-        console.error("telegram broadcast failed", { userId: userId.toString(), leagueId, type: "member_removed", err });
-      }
-    })
-  );
+  await runLimited(userIds, async (userId) => {
+    if (!client) return;
+    try {
+      await client.sendMessage(userId.toString(), text);
+    } catch (err) {
+      console.error("telegram broadcast failed", { userId: userId.toString(), leagueId, type: "member_removed", err });
+    }
+  });
 }
 
 function standingsSummary(standings: Awaited<ReturnType<typeof computeStandings>>, memberId: string) {
@@ -106,19 +105,16 @@ async function broadcastResultWithStandings(leagueId: string, match: MatchWithMe
   const standings = await computeStandings(match.stageId);
   const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
   const client = getBot();
-  await Promise.all(
-    members.map(async (m) => {
-      const text = `${resultLine}\n\n${standingsSummary(standings, m.id)}`;
-      for (const { userId } of m.users) {
-        if (!client) continue;
-        try {
-          await client.sendMessage(userId.toString(), text);
-        } catch (err) {
-          console.error("telegram broadcast failed", { userId: userId.toString(), matchId: match.id, type: "result_confirmed", err });
-        }
-      }
-    })
-  );
+  const recipients = members.flatMap((m) => m.users.map((u) => ({ userId: u.userId, memberId: m.id })));
+  await runLimited(recipients, async ({ userId, memberId }) => {
+    if (!client) return;
+    const text = `${resultLine}\n\n${standingsSummary(standings, memberId)}`;
+    try {
+      await client.sendMessage(userId.toString(), text);
+    } catch (err) {
+      console.error("telegram broadcast failed", { userId: userId.toString(), matchId: match.id, type: "result_confirmed", err });
+    }
+  });
 }
 
 export async function notifyLeagueStarted(league: League, owner: User, members: MemberWithUsers[]) {
@@ -131,75 +127,41 @@ export async function notifyLeagueStarted(league: League, owner: User, members: 
   ].join("\n");
   const client = getBot();
   const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
-  await Promise.all(
-    userIds.map(async (userId) => {
-      if (!client) return;
-      try {
-        await client.sendMessage(userId.toString(), text);
-      } catch (err) {
-        console.error("telegram broadcast failed", { userId: userId.toString(), leagueId: league.id, type: "league_started", err });
-      }
-    })
-  );
+  await runLimited(userIds, async (userId) => {
+    if (!client) return;
+    try {
+      await client.sendMessage(userId.toString(), text);
+    } catch (err) {
+      console.error("telegram broadcast failed", { userId: userId.toString(), leagueId: league.id, type: "league_started", err });
+    }
+  });
 }
 
-export async function notifyCustomMessage(leagueName: string, owner: User, targetUserId: bigint, text: string) {
+export async function notifyCustomMessageToMany(leagueName: string, owner: User, targetUserIds: bigint[], text: string) {
   const ownerName = owner.nickname ?? owner.firstName;
   const message = `✉️ پیام از ادمین لیگ «${leagueName}» (${ownerName}):\n${text}`;
   const client = getBot();
-  if (!client) throw new Error("BOT_TOKEN not configured");
-  await client.sendMessage(targetUserId.toString(), message);
+  await runLimited(targetUserIds, async (userId) => {
+    if (!client) return;
+    try {
+      await client.sendMessage(userId.toString(), message);
+    } catch (err) {
+      console.error("telegram custom message failed", { userId: userId.toString(), leagueName, err });
+    }
+  });
 }
 
-async function broadcastToLeague(leagueId: string, matchId: string, type: "next_match" | "result_confirmed", text: string) {
+async function broadcastToLeague(leagueId: string, matchId: string, type: "result_confirmed", text: string) {
   const members = await prisma.leagueMember.findMany({ where: { leagueId }, include: { users: true } });
   const client = getBot();
   const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
-  await Promise.all(
-    userIds.map(async (userId) => {
-      if (!client) return;
-      try {
-        await client.sendMessage(userId.toString(), text);
-      } catch (err) {
-        console.error("telegram broadcast failed", { userId: userId.toString(), matchId, type, err });
-      }
-    })
-  );
-}
-
-async function sendOnce(userId: bigint, matchId: string, type: "next_match" | "result_confirmed", text: string) {
-  const existing = await prisma.notification.findUnique({
-    where: { userId_matchId_type: { userId, matchId, type } },
-  });
-  // Only skip if it already went through — a previously failed attempt is retried.
-  if (existing?.delivered) return;
-
-  const client = getBot();
-  if (!client) {
-    await upsertNotification(userId, matchId, type, false, "BOT_TOKEN not configured");
-    return;
-  }
-
-  try {
-    await client.sendMessage(userId.toString(), text);
-    await upsertNotification(userId, matchId, type, true, null);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("telegram notify failed", { userId: userId.toString(), matchId, type, message });
-    await upsertNotification(userId, matchId, type, false, message);
-  }
-}
-
-async function upsertNotification(
-  userId: bigint,
-  matchId: string,
-  type: "next_match" | "result_confirmed",
-  delivered: boolean,
-  error: string | null
-) {
-  await prisma.notification.upsert({
-    where: { userId_matchId_type: { userId, matchId, type } },
-    update: { delivered, error, sentAt: new Date() },
-    create: { userId, matchId, type, delivered, error },
+  await runLimited(userIds, async (userId) => {
+    if (!client) return;
+    try {
+      await client.sendMessage(userId.toString(), text);
+    } catch (err) {
+      console.error("telegram broadcast failed", { userId: userId.toString(), matchId, type, err });
+    }
   });
 }
+

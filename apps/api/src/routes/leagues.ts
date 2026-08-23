@@ -4,7 +4,7 @@ import { prisma } from "../prisma";
 import { AuthedRequest, requireAuth } from "../authMiddleware";
 import { serializeBigInt } from "../serialize";
 import { generateRoundRobin, generateHomeAndAway, generateKnockoutRound1 } from "../fixtures";
-import { notifyNextMatch, notifyMemberJoined, notifyMemberRemoved, notifyLeagueStarted, notifyCustomMessage } from "../notifications";
+import { notifyMemberJoined, notifyMemberRemoved, notifyLeagueStarted, notifyCustomMessageToMany } from "../notifications";
 import { generateInviteCode } from "../inviteCode";
 import { displayName } from "../displayName";
 import { computeStandings } from "../standings";
@@ -216,9 +216,7 @@ leaguesRouter.post("/:id/members/:memberId/message", async (req: AuthedRequest, 
   const ownerUser = await prisma.user.findUnique({ where: { telegramId: owner.ownerId } });
   if (!ownerUser) return res.status(500).json({ error: "owner profile not found" });
 
-  await Promise.all(
-    member.users.map((u) => notifyCustomMessage(owner.name, ownerUser, u.userId, parsed.data.text))
-  );
+  await notifyCustomMessageToMany(owner.name, ownerUser, member.users.map((u) => u.userId), parsed.data.text);
 
   res.status(204).send();
 });
@@ -237,7 +235,7 @@ leaguesRouter.post("/:id/message", async (req: AuthedRequest, res) => {
   const members = await prisma.leagueMember.findMany({ where: { leagueId: req.params.id }, include: { users: true } });
   const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
 
-  await Promise.all(userIds.map((userId) => notifyCustomMessage(owner.name, ownerUser, userId, parsed.data.text)));
+  await notifyCustomMessageToMany(owner.name, ownerUser, userIds, parsed.data.text);
 
   res.status(204).send();
 });
@@ -286,7 +284,6 @@ leaguesRouter.post("/:id/generate-fixture", async (req: AuthedRequest, res) => {
       awayMember: { include: { users: { include: { user: true } } } },
     },
   });
-  await Promise.all(created.map((m) => notifyNextMatch(m)));
 
   const ownerUser = await prisma.user.findUnique({ where: { telegramId: owner.ownerId } });
   const membersWithUsers = await prisma.leagueMember.findMany({
@@ -343,7 +340,6 @@ leaguesRouter.post("/:id/advance-stage", async (req: AuthedRequest, res) => {
       awayMember: { include: { users: { include: { user: true } } } },
     },
   });
-  await Promise.all(created.map((m) => notifyNextMatch(m)));
 
   res.status(201).json(serializeBigInt(created));
 });
