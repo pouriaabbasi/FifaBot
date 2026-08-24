@@ -2,8 +2,16 @@ import type { User } from "@prisma/client";
 
 type UserLike = Pick<User, "nickname" | "firstName">;
 
+// Isolates a name from the surrounding bidi context (LRI ... PDI) so a
+// Latin name dropped into a Persian sentence — or vice versa — doesn't
+// scramble the ordering of adjacent digits/punctuation (e.g. scores, list
+// numbering) on RTL-first clients like Telegram.
+function isolate(text: string) {
+  return `⁦${text}⁩`;
+}
+
 function userLabel(user: UserLike) {
-  return user.nickname ?? user.firstName;
+  return isolate(user.nickname ?? user.firstName);
 }
 
 /**
@@ -11,7 +19,7 @@ function userLabel(user: UserLike) {
  * player's own nickname/name, a paired team shows "A و B".
  */
 export function displayName(member: { nickname: string | null }, users: UserLike[]): string {
-  if (member.nickname) return member.nickname;
+  if (member.nickname) return isolate(member.nickname);
   if (users.length === 0) return "?";
   if (users.length === 1) return userLabel(users[0]);
   return users.map(userLabel).join(" و ");

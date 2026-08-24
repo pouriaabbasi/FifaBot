@@ -37,17 +37,21 @@ function memberUserIds(member: MemberWithUsers) {
   return member.users.map((u) => u.userId);
 }
 
+function resultLines(title: string, homeName: string, homeScore: number, awayName: string, awayScore: number) {
+  return [title, `‎${homeName}: ${homeScore}`, `‎${awayName}: ${awayScore}`].join("\n");
+}
+
 export async function notifyResultConfirmed(match: MatchWithMembers, leagueId: string) {
   const homeName = memberLabel(match.homeMember);
   const awayName = memberLabel(match.awayMember);
-  const resultLine = `✅ نتیجه ثبت شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
+  const resultLine = resultLines("✅ نتیجه ثبت شد:", homeName, match.homeScore!, awayName, match.awayScore!);
   await broadcastResultWithStandings(leagueId, match, resultLine);
 }
 
 export async function notifyResultUpdated(match: MatchWithMembers, leagueId: string) {
   const homeName = memberLabel(match.homeMember);
   const awayName = memberLabel(match.awayMember);
-  const resultLine = `✏️ نتیجه ویرایش شد: ${homeName} ${match.homeScore} - ${match.awayScore} ${awayName}`;
+  const resultLine = resultLines("✏️ نتیجه ویرایش شد:", homeName, match.homeScore!, awayName, match.awayScore!);
   await broadcastResultWithStandings(leagueId, match, resultLine);
 }
 
@@ -91,12 +95,19 @@ export async function notifyMemberRemoved(leagueId: string, leagueName: string, 
   });
 }
 
+function standingRow(rank: number, name: string, points: number) {
+  // Leading LRM forces the line to lay out left-to-right first, so the
+  // "1." numbering stays before the name regardless of whether the name
+  // itself is Latin or Persian.
+  return `‎${rank}. ${name} — ${points} امتیاز`;
+}
+
 function standingsSummary(standings: Awaited<ReturnType<typeof computeStandings>>, memberId: string) {
   const top3 = standings.slice(0, 3);
-  const lines = top3.map((s, i) => `${i + 1}. ${s.name} — ${s.points} امتیاز`);
+  const lines = top3.map((s, i) => standingRow(i + 1, s.name, s.points));
   const ownIndex = standings.findIndex((s) => s.memberId === memberId);
   if (ownIndex >= 3) {
-    lines.push(`…`, `${ownIndex + 1}. ${standings[ownIndex].name} — ${standings[ownIndex].points} امتیاز`);
+    lines.push(`…`, standingRow(ownIndex + 1, standings[ownIndex].name, standings[ownIndex].points));
   }
   return `📊 جدول رده‌بندی:\n${lines.join("\n")}`;
 }

@@ -8,8 +8,15 @@ interface MemberLike {
   users: { user: UserLike }[];
 }
 
+// Isolates a name from the surrounding bidi context (LRI ... PDI) so a
+// Latin name mixed into Persian UI text doesn't scramble the ordering of
+// adjacent digits/punctuation (scores, list numbering, etc.).
+function isolate(text: string) {
+  return `⁦${text}⁩`;
+}
+
 function userLabel(user: UserLike) {
-  return user.nickname ?? user.firstName;
+  return isolate(user.nickname ?? user.firstName);
 }
 
 /**
@@ -17,7 +24,7 @@ function userLabel(user: UserLike) {
  * player's own nickname/name, a paired team shows "A و B".
  */
 export function displayName(member: MemberLike): string {
-  if (member.nickname) return member.nickname;
+  if (member.nickname) return isolate(member.nickname);
   const names = member.users.map((u) => userLabel(u.user));
   if (names.length === 0) return "?";
   return names.join(" و ");
