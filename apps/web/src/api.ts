@@ -119,6 +119,9 @@ export const api = {
   messageLeague: (leagueId: string, text: string) =>
     request(`/api/leagues/${leagueId}/message`, { method: "POST", body: JSON.stringify({ text }) }),
 
+  messageOwner: (leagueId: string, text: string) =>
+    request(`/api/leagues/${leagueId}/message-owner`, { method: "POST", body: JSON.stringify({ text }) }),
+
   joinLeague: (inviteCode: string) =>
     request<{ league: League; member: LeagueMember }>(`/api/leagues/join/${inviteCode}`, { method: "POST" }),
 

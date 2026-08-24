@@ -167,6 +167,17 @@ export async function notifyLeagueStarted(league: League, owner: User, members: 
   });
 }
 
+export async function notifyMessageToOwner(leagueName: string, ownerId: bigint, senderName: string, text: string) {
+  const client = getBot();
+  if (!client) return;
+  const message = `✉️ پیام از ${senderName} در لیگ «${leagueName}»:\n${text}`;
+  try {
+    await client.sendMessage(ownerId.toString(), message);
+  } catch (err) {
+    console.error("telegram message to owner failed", { ownerId: ownerId.toString(), leagueName, err });
+  }
+}
+
 export async function notifyCustomMessageToMany(leagueName: string, owner: User, targetUserIds: bigint[], text: string) {
   const ownerName = owner.nickname ?? owner.firstName;
   const message = `✉️ پیام از ادمین لیگ «${leagueName}» (${ownerName}):\n${text}`;

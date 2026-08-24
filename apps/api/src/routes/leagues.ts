@@ -4,7 +4,13 @@ import { prisma } from "../prisma";
 import { AuthedRequest, requireAuth } from "../authMiddleware";
 import { serializeBigInt } from "../serialize";
 import { generateRoundRobin, generateHomeAndAway, generateKnockoutRound1 } from "../fixtures";
-import { notifyMemberJoined, notifyMemberRemoved, notifyLeagueStarted, notifyCustomMessageToMany } from "../notifications";
+import {
+  notifyMemberJoined,
+  notifyMemberRemoved,
+  notifyLeagueStarted,
+  notifyCustomMessageToMany,
+  notifyMessageToOwner,
+} from "../notifications";
 import { generateInviteCode } from "../inviteCode";
 import { displayName } from "../displayName";
 import { computeStandings } from "../standings";
@@ -236,6 +242,28 @@ leaguesRouter.post("/:id/message", async (req: AuthedRequest, res) => {
   const userIds = members.flatMap((m) => m.users.map((u) => u.userId));
 
   await notifyCustomMessageToMany(owner.name, ownerUser, userIds, parsed.data.text);
+
+  res.status(204).send();
+});
+
+leaguesRouter.post("/:id/message-owner", async (req: AuthedRequest, res) => {
+  const league = await prisma.league.findUnique({ where: { id: req.params.id } });
+  if (!league) return res.status(404).json({ error: "league not found" });
+
+  const parsed = messageSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const senderId = BigInt(req.auth!.telegramId);
+  if (league.ownerId === senderId) return res.status(400).json({ error: "you are the owner" });
+
+  const member = await prisma.leagueMember.findFirst({
+    where: { leagueId: league.id, users: { some: { userId: senderId } } },
+    include: { users: { include: { user: true } } },
+  });
+  if (!member) return res.status(403).json({ error: "not a member of this league" });
+
+  const senderName = displayName(member, member.users.map((u) => u.user));
+  await notifyMessageToOwner(league.name, league.ownerId, senderName, parsed.data.text);
 
   res.status(204).send();
 });

@@ -18,7 +18,7 @@ export function LeagueDetailPage() {
   const [startError, setStartError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [pairingId, setPairingId] = useState<string | null>(null);
-  const [messageTarget, setMessageTarget] = useState<{ memberId: string; label: string } | "all" | null>(null);
+  const [messageTarget, setMessageTarget] = useState<{ memberId: string; label: string } | "all" | "owner" | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
 
   async function reload() {
@@ -98,6 +98,15 @@ export function LeagueDetailPage() {
               onClick={() => setMessageTarget("all")}
             >
               پیام به همه
+            </button>
+          )}
+          {!isOwner && myMembership && (
+            <button
+              className="btn-gold"
+              style={{ width: "auto", padding: "6px 14px", fontSize: "0.75rem" }}
+              onClick={() => setMessageTarget("owner")}
+            >
+              پیام به ادمین
             </button>
           )}
         </div>
@@ -260,10 +269,17 @@ export function LeagueDetailPage() {
 
       {messageTarget && leagueId && (
         <MessageModal
-          title={messageTarget === "all" ? `پیام به کل اعضای «${league?.name}»` : `پیام به ${messageTarget.label}`}
+          title={
+            messageTarget === "all"
+              ? `پیام به کل اعضای «${league?.name}»`
+              : messageTarget === "owner"
+              ? "پیام به ادمین لیگ"
+              : `پیام به ${messageTarget.label}`
+          }
           onClose={() => setMessageTarget(null)}
           onSend={async (text) => {
             if (messageTarget === "all") await api.messageLeague(leagueId, text);
+            else if (messageTarget === "owner") await api.messageOwner(leagueId, text);
             else await api.messageMember(leagueId, messageTarget.memberId, text);
           }}
         />
